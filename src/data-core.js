@@ -1,0 +1,2 @@
+const DATA_CORE = { races: [], statuses: [], traits: [], skills: [], lores: [], crafts: [], weapons: [], armor: [], shield: [], conditions: [], injuries: [], exhaustion: [], osByLevel: { 1: 3 }, tiers: [] };
+if (typeof module !== 'undefined' && module.exports) module.exports = { DATA_CORE };

@@ -1,0 +1,9 @@
+{
+  "name": "antar-sheet",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node --test"
+  }
+}
