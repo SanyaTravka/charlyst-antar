@@ -70,3 +70,60 @@ test('skills/lores/crafts: все ссылки на атрибуты валид�
   assert.ok(Object.keys(DATA_CORE.lores).length >= 19);
   assert.ok(Object.keys(DATA_CORE.crafts).length >= 17);
 });
+
+test('weapons: 18 видов из таблицы правил, все поля', () => {
+  // rules 0.98 weapon table (2583-2746) contains exactly 18 weapons; plan's 20 was an overestimate
+  assert.ok(Object.keys(DATA_CORE.weapons).length >= 18);
+  for (const id of Object.keys(DATA_CORE.weapons)) {
+    const w = DATA_CORE.weapons[id];
+    assert.ok(w.name && w.kind && w.speed && w.damage, id);
+    assert.ok(Number.isInteger(w.speed) && w.speed >= 1, id);
+    assert.ok(['короткое клинковое', 'длинное клинковое', 'древковое', 'ударно-дробящее', 'дальнобойное'].includes(w.kind), id + '/' + w.kind);
+    assert.ok(typeof w.props === 'string' && typeof w.reach === 'string', id);
+  }
+  assert.equal(DATA_CORE.weapons.dagger.speed, 3);
+  assert.equal(DATA_CORE.weapons['twoHandedSword'].speed, 2);
+  assert.equal(DATA_CORE.weapons['heavyCrossbow'].speed, 1);
+});
+
+test('armor and shield', () => {
+  assert.equal(DATA_CORE.armor['veryLight'].ac, 14);
+  assert.equal(DATA_CORE.armor['light'].ac, 16);
+  assert.equal(DATA_CORE.armor['medium'].ac, 18);
+  assert.equal(DATA_CORE.armor['heavy'].ac, 20);
+  assert.equal(DATA_CORE.armor['veryHeavy'].ac, 22);
+  for (const id in DATA_CORE.armor) {
+    const a = DATA_CORE.armor[id];
+    assert.ok(a.name && a.penalties && Number.isInteger(a.ac) && a.ac >= 14 && a.ac <= 22, id);
+  }
+  assert.equal(DATA_CORE.shield['light'].bonus, 1);
+  assert.equal(DATA_CORE.shield['medium'].bonus, 2);
+  assert.equal(DATA_CORE.shield['tower'].bonus, 3);
+  for (const id in DATA_CORE.shield) {
+    const s = DATA_CORE.shield[id];
+    assert.ok(s.name && Number.isInteger(s.bonus) && s.bonus >= 1 && s.bonus <= 3, id);
+  }
+});
+
+test('conditions: 20 из правил, exhaustion: 6, injuries: 4', () => {
+  // rules 0.98 conditions section (330-427) contains 20 conditions; plan's 17 was an underestimate
+  assert.equal(Object.keys(DATA_CORE.conditions).length, 20);
+  for (const id in DATA_CORE.conditions) {
+    const c = DATA_CORE.conditions[id];
+    assert.ok(c.name && c.desc, id);
+  }
+  assert.equal(Object.keys(DATA_CORE.exhaustion).length, 6);
+  for (let d = 1; d <= 6; d++) {
+    const e = DATA_CORE.exhaustion[d];
+    assert.ok(e && e.name && e.desc, 'exhaustion/' + d);
+  }
+  assert.deepEqual(Object.keys(DATA_CORE.injuries).sort(), ['arms', 'head', 'legs', 'torso']);
+  for (const id in DATA_CORE.injuries) {
+    assert.ok(DATA_CORE.injuries[id].name && DATA_CORE.injuries[id].desc, id);
+  }
+});
+
+test('osByLevel 1..10 и tiers', () => {
+  assert.deepEqual(DATA_CORE.osByLevel, { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3 });
+  assert.deepEqual(DATA_CORE.tiers, [1, 2, 3, 4]);
+});
