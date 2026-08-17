@@ -2500,9 +2500,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     `));
   }
 
-  function buyAbility(id) {
+  function buyAbility(d, id) {
     mutate(() => {
-      const d = state.wizard.draft;
       if (d.abilities.indexOf(id) !== -1) return;
       const cost = CALC.abilityCost(DATA, id);
       if (d.spentOS + cost > CALC.totalOS(d, DATA)) return;
@@ -2511,9 +2510,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     });
   }
 
-  function sellAbility(id) {
+  function sellAbility(d, id) {
     mutate(() => {
-      const d = state.wizard.draft;
       const i = d.abilities.indexOf(id);
       if (i === -1) return;
       d.abilities.splice(i, 1);
@@ -2624,7 +2622,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     page.appendChild(sheetHeader(char));
     page.appendChild(trackerBlock(char));
     page.appendChild(tabBar());
-    if (state.tab === 'specs') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Специализации» пока не готова.</p></div>'));
+    if (state.tab === 'specs') renderSpecs(page, char);
     else if (state.tab === 'spells') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Заклинания» пока не готова.</p></div>'));
     else if (state.tab === 'refbook') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Справочник» пока не готова.</p></div>'));
     else if (state.tab === 'notes') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Заметки» пока не готова.</p></div>'));
@@ -2828,7 +2826,220 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   function tabSet(id) {
     state.tab = id;
     weaponModalOpen = false;
+    condModalOpen = false;
+    exhModalOpen = false;
     render();
+  }
+
+  function tierRange(t) {
+    const lo = 5 * t - 4, hi = 5 * t;
+    return 'уровень ' + lo + '–' + hi;
+  }
+
+  function abilityCostLabel(id) {
+    const cost = CALC.abilityCost(DATA, id);
+    const ab = DATA.allAbilities[id];
+    const spec = ab && DATA.specializations[ab.specId];
+    return (spec && spec.somatic) ? cost + ' ОС' : '1 ОС за 2 способности';
+  }
+
+  function renderSpecs(container, char) {
+    const total = CALC.totalOS(char, DATA);
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.75rem;">
+        <h3 style="margin:0;">Специализации и способности</h3>
+        <span class="muted">ОС: ${char.spentOS} / ${total}</span>
+      </div>
+    `));
+    for (const sid of char.specializations) {
+      const spec = DATA.specializations[sid];
+      if (!spec) continue;
+      const card = el('<div class="card" style="margin-bottom:1rem;"></div>');
+      card.appendChild(el(`<h3 style="margin-top:0;">${esc(spec.name)} <span class="muted small">${spec.somatic ? 'телесная' : 'приобретённая'}${spec.empty ? ' · ждём редакций' : ''}</span></h3>`));
+      if (spec.empty) {
+        card.appendChild(customAbilitiesBlock(char, sid));
+      } else {
+        for (let t = 1; t <= 4; t++) {
+          const ids = Object.keys(DATA.allAbilities).filter(id => {
+            const ab = DATA.allAbilities[id];
+            return ab && ab.specId === sid && ab.tier === t;
+          });
+          if (!ids.length) continue;
+          card.appendChild(el(`<h4 style="margin:0.75rem 0 0.25rem;">Тир ${t} <span class="muted small">(${tierRange(t)})</span></h4>`));
+          for (const id of ids) card.appendChild(abilityCard(char, id));
+        }
+      }
+      container.appendChild(card);
+    }
+    const known = char.specializations;
+    const available = Object.keys(DATA.specializations).filter(id => known.indexOf(id) === -1);
+    if (available.length) {
+      const learn = el('<div class="card" style="margin-bottom:1rem;"></div>');
+      learn.appendChild(el('<h3 style="margin-top:0;">Изучить специализацию</h3>'));
+      learn.appendChild(el(`<p class="small muted">Телесная — 1 ОС, приобретённая — 1 ОС за 2. ${esc(tierRange(1))}.</p>`));
+      const row = el('<div class="row"></div>');
+      for (const id of available) {
+        const s = DATA.specializations[id];
+        const cost = s.somatic ? 1 : 0.5;
+        row.appendChild(el(`
+          <button class="btn" data-action="spec-learn" data-id="${esc(id)}"${dis(char.spentOS + cost > total)}>
+            + ${esc(s.name)} (${cost} ОС)
+          </button>
+        `));
+      }
+      learn.appendChild(row);
+      container.appendChild(learn);
+    }
+    container.appendChild(osBonusesBlock(char));
+  }
+
+  function abilityCard(char, id) {
+    const ab = DATA.allAbilities[id];
+    const tierMax = CALC.tier(char.level);
+    const cost = CALC.abilityCost(DATA, id);
+    const owned = char.abilities.indexOf(id) !== -1;
+    let btn;
+    if (owned) {
+      btn = `<button class="btn btn-danger" data-action="ab-sell" data-id="${esc(id)}">Отдать</button>`;
+    } else if (ab.tier > tierMax) {
+      btn = `<button class="btn" data-action="ab-buy" data-id="${esc(id)}" disabled style="opacity:0.55;cursor:default;">Требуется тир ${ab.tier} (${esc(tierRange(ab.tier))})</button>`;
+    } else if (char.spentOS + cost > CALC.totalOS(char, DATA)) {
+      btn = `<button class="btn" data-action="ab-buy" data-id="${esc(id)}" disabled style="opacity:0.55;cursor:default;">Не хватает ОС</button>`;
+    } else {
+      btn = `<button class="btn" data-action="ab-buy" data-id="${esc(id)}">Взять</button>`;
+    }
+    return el(`
+      <div class="card" style="margin:0.5rem 0;">
+        <div class="row between">
+          <strong>${esc(ab.name)} <span class="muted small">Тир ${ab.tier} · ${ab.type === 'passive' ? 'пассивная' : 'активная'} · ${esc(abilityCostLabel(id))}</span></strong>
+          ${btn}
+        </div>
+        <details style="margin-top:0.4rem;">
+          <summary class="small muted" style="cursor:pointer;">Описание</summary>
+          <p class="small" style="margin:0.35rem 0 0;">${esc(ab.desc)}</p>
+        </details>
+      </div>
+    `);
+  }
+
+  function customAbilitiesBlock(char, specId) {
+    const box = el('<div></div>');
+    const list = char.customAbilities.filter(a => a.specId === specId);
+    if (!list.length) {
+      box.appendChild(el('<p class="small muted">Своих способностей пока нет.</p>'));
+    }
+    list.forEach((a, i) => {
+      box.appendChild(el(`
+        <div class="card" style="margin:0.5rem 0;">
+          <div class="row between">
+            <strong>${esc(a.name)} <span class="muted small">Тир ${esc(a.tier)} · ${esc(a.type === 'passive' ? 'пассивная' : 'активная')} · ${esc(a.cost)}</span></strong>
+            <button class="btn btn-danger" data-action="custom-del" data-id="${i}">Убрать</button>
+          </div>
+          ${a.desc ? `<p class="small muted" style="margin:0.35rem 0 0;">${esc(a.desc)}</p>` : ''}
+        </div>
+      `));
+    });
+    box.appendChild(el(`
+      <div class="custom-form">
+        <div class="row" style="margin-top:0.5rem;">
+          <input class="field" style="flex:1;" placeholder="Название" data-action="c-name">
+          <select class="field" data-action="c-tier">
+            <option value="1">Тир 1</option>
+            <option value="2">Тир 2</option>
+            <option value="3">Тир 3</option>
+            <option value="4">Тир 4</option>
+          </select>
+          <select class="field" data-action="c-type">
+            <option value="active">Активная</option>
+            <option value="passive">Пассивная</option>
+          </select>
+        </div>
+        <div class="row" style="margin-top:0.5rem;">
+          <input class="field" style="flex:1;" placeholder="Затраты (например: 2 маны)" data-action="c-cost">
+          <input class="field" style="flex:1;" placeholder="Текст способности" data-action="c-desc">
+        </div>
+        <div class="row" style="margin-top:0.5rem;">
+          <button class="btn" data-action="custom-add" data-id="${esc(specId)}">Добавить свою</button>
+        </div>
+      </div>
+    `));
+    return box;
+  }
+
+  function osBonusesBlock(char) {
+    return el(`
+      <div class="card" style="margin-bottom:1rem;">
+        <h3 style="margin-top:0;">Бонусы за ОС</h3>
+        <p class="small muted" style="margin:0 0 0.5rem;">За 1 ОС: +1 к запасу сил и +1 к мане, либо +5 хитпоинтов.</p>
+        <div class="row">
+          <button class="btn" data-action="os-plus" data-id="both"${dis(char.spentOS + 1 > CALC.totalOS(char, DATA))}>+1 ЗС и +1 мана</button>
+          <button class="btn" data-action="os-minus" data-id="both"${dis(char.spentOS <= 0 || (char.osBonuses.stamina <= 0 && char.osBonuses.mana <= 0))}>− возврат</button>
+          <button class="btn" data-action="os-plus" data-id="hp"${dis(char.spentOS + 1 > CALC.totalOS(char, DATA))}>+5 HP</button>
+          <button class="btn" data-action="os-minus" data-id="hp"${dis(char.spentOS <= 0 || char.osBonuses.hp <= 0)}>− возврат</button>
+        </div>
+        <p class="small muted" style="margin-top:0.5rem;">Бонусы: ЗС +${char.osBonuses.stamina} · Мана +${char.osBonuses.mana} · HP +${char.osBonuses.hp}</p>
+      </div>
+    `);
+  }
+
+  function learnSpec(char, id) {
+    if (char.specializations.indexOf(id) !== -1) return;
+    const s = DATA.specializations[id];
+    if (!s) return;
+    const cost = s.somatic ? 1 : 0.5;
+    mutate(() => {
+      if (char.spentOS + cost > CALC.totalOS(char, DATA)) return;
+      char.specializations.push(id);
+      char.spentOS += cost;
+    });
+  }
+
+  function addCustomAbility(char, specId, btn) {
+    const form = btn.closest('.custom-form');
+    if (!form) return;
+    const val = a => {
+      const f = form.querySelector('[data-action="' + a + '"]');
+      return f ? String(f.value || '').trim() : '';
+    };
+    const name = val('c-name');
+    if (!name) { toast('Укажите название способности', 'error'); return; }
+    mutate(() => {
+      char.customAbilities.push({
+        specId,
+        name,
+        tier: Math.max(1, Math.min(4, parseInt(val('c-tier'), 10) || 1)),
+        type: val('c-type') === 'passive' ? 'passive' : 'active',
+        cost: val('c-cost'),
+        desc: val('c-desc'),
+      });
+    });
+  }
+
+  function removeCustomAbility(char, idx) {
+    mutate(() => { char.customAbilities.splice(idx, 1); });
+  }
+
+  function osBonusChar(char, kind, dir) {
+    mutate(() => {
+      const total = CALC.totalOS(char, DATA);
+      if (dir > 0) {
+        if (char.spentOS + 1 > total) return;
+        char.spentOS += 1;
+        if (kind === 'hp') char.osBonuses.hp += 5;
+        else { char.osBonuses.stamina += 1; char.osBonuses.mana += 1; }
+      } else {
+        if (char.spentOS <= 0) return;
+        if (kind === 'hp') {
+          if (char.osBonuses.hp <= 0) return;
+          char.osBonuses.hp -= 5;
+        } else {
+          if (char.osBonuses.stamina <= 0 && char.osBonuses.mana <= 0) return;
+          char.osBonuses.stamina -= 1;
+          char.osBonuses.mana -= 1;
+        }
+        char.spentOS -= 1;
+      }
+    });
   }
 
   function section(title, body) {
@@ -3133,8 +3344,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'attr-plus') attrInc(id);
     else if (action === 'attr-minus') attrDec(id);
     else if (action === 'spec') pickSpec(id);
-    else if (action === 'ability-buy') buyAbility(id);
-    else if (action === 'ability-sell') sellAbility(id);
+    else if (action === 'ability-buy') buyAbility(state.wizard.draft, id);
+    else if (action === 'ability-sell') sellAbility(state.wizard.draft, id);
     else if (action === 'os-bonus') osBonus(id);
     else if (action === 'potential-roll') potentialRoll();
     else if (action === 'potential-to') potentialTo(id);
@@ -3172,6 +3383,13 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'cond-del') condDel(id);
     else if (action === 'new-turn') newTurn();
     else if (action === 'new-day') newDay();
+    else if (action === 'spec-learn') learnSpec(currentChar(), id);
+    else if (action === 'ab-buy') buyAbility(currentChar(), id);
+    else if (action === 'ab-sell') sellAbility(currentChar(), id);
+    else if (action === 'custom-add') addCustomAbility(currentChar(), id, t);
+    else if (action === 'custom-del') removeCustomAbility(currentChar(), parseInt(id, 10));
+    else if (action === 'os-plus') osBonusChar(currentChar(), id, 1);
+    else if (action === 'os-minus') osBonusChar(currentChar(), id, -1);
   }
 
   function handleInput(e) {
