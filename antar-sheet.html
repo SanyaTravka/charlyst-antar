@@ -2511,6 +2511,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     delete c.potentialRolled;
     delete c.potentialPoints;
     delete c.potentialTo;
+    const tr = CALC.trait(c, DATA);
+    if (tr && tr.inspirationDaily) c.inspiration = tr.inspirationDaily;
     c.hp.current = c.hp.max = CALC.maxHp(c, DATA);
     c.stamina.current = c.stamina.max = CALC.maxStamina(c, DATA);
     c.mana.current = c.mana.max = CALC.maxMana(c, DATA);
@@ -2662,7 +2664,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
             <strong>${esc(a)}</strong>
             <span class="small muted">финал ${out.attrFinal[a]} · мод ${m >= 0 ? '+' : ''}${m}</span>
           </div>
-          <input class="field" type="number" min="1" max="30" data-action="attr-set" data-id="${esc(a)}" value="${char.attrs[a]}" style="width:4.5rem;">
+          <input class="field" type="number" min="1" max="30" data-action="attr-set" data-id="${esc(a)}" value="${esc(char.attrs[a])}" style="width:4.5rem;">
         </div>
       `));
     }
@@ -2698,7 +2700,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     box.appendChild(el(`
       <div class="row between" style="padding:0.3rem 0;">
         <span class="muted">Уровневый бонус</span>
-        <input class="field" type="number" min="0" max="20" data-action="mastery-set" value="${char.masteryBonus}" style="width:4.5rem;">
+        <input class="field" type="number" min="0" max="20" data-action="mastery-set" value="${esc(char.masteryBonus)}" style="width:4.5rem;">
       </div>
     `));
     return box;
@@ -2869,7 +2871,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     if (tr && tr.inspirationDaily) {
       box.appendChild(el(`
         <div class="row" style="margin-top:0.5rem;">
-          <button class="btn" data-action="reroll"${dis(char.inspiration <= 0 || !lastDice)}>Переброс (вдохновение: ${char.inspiration})</button>
+          <button class="btn" data-action="reroll"${dis(char.inspiration <= 0 || !lastDice)}>Переброс (вдохновение: ${esc(char.inspiration)})</button>
           <span class="small muted">«Везунчик»: 3 вдохновения в день на перебросы.</span>
         </div>
       `));
@@ -2961,7 +2963,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'levelup') levelUp();
     else if (action === 'weapon-add') { weaponModalOpen = true; render(); }
     else if (action === 'weapon-close') { weaponModalOpen = false; render(); }
-    else if (action === 'weapon-stop') { /* no-op */ }
+    else if (action === 'weapon-stop') {}
     else if (action === 'weapon-stock') weaponStock(id);
     else if (action === 'weapon-del') weaponDel(parseInt(id, 10));
     else if (action === 'weapon-custom') weaponCustom(t);
@@ -3130,6 +3132,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
 
   function render() {
     const app = document.getElementById('app');
+    let focus = null;
+    const ae = document.activeElement;
+    if (ae && ae.getAttribute && ae.getAttribute('data-action')) {
+      focus = { action: ae.getAttribute('data-action'), id: ae.getAttribute('data-id'), selStart: ae.selectionStart, selEnd: ae.selectionEnd };
+    }
     app.innerHTML = '';
     app.onclick = handleClick;
     app.oninput = handleInput;
@@ -3137,11 +3144,18 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     if (state.screen === 'select') renderSelect(app);
     else if (state.screen === 'wizard') renderWizard(app);
     else if (state.screen === 'sheet') renderSheet(app);
+    if (focus) {
+      const sel = app.querySelector('[data-action="' + focus.action + '"]' + (focus.id ? '[data-id="' + focus.id + '"]' : ''));
+      if (sel) {
+        sel.focus();
+        if (sel.setSelectionRange && typeof focus.selStart === 'number') sel.setSelectionRange(focus.selStart, focus.selEnd);
+      }
+    }
   }
 
   render();
 
-  window.APP = { DATA, state, el, currentChar, mutate, save, toast, goto, render, esc, selectChar, deleteChar, exportChar, importChar, newChar, calcFull, tabSet };
+  window.APP = { DATA, state, el, currentChar, mutate, save, toast, goto, render, esc, selectChar, deleteChar, exportChar, importChar, newChar, calcFull, tabSet, createChar };
 })();
 
 </script>
