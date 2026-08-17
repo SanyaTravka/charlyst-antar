@@ -536,6 +536,8 @@
       d.osBonuses[d.potentialTo] += d.potentialPoints;
     }
     const c = STORE.normalize(d);
+    c.id = STORE.newId();
+    c.createdAt = c.updatedAt = Date.now();
     delete c.potentialRolled;
     delete c.potentialPoints;
     delete c.potentialTo;
