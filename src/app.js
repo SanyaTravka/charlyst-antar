@@ -305,7 +305,7 @@
     return w.step === 1 ? !!w.draft.raceId
       : w.step === 2 ? !!w.draft.statusId
       : w.step === 3 ? !!w.draft.traitRolled
-      : true;
+      : w.step < 6;
   }
 
   function humanModal() {
