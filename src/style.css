@@ -173,6 +173,49 @@ h3 { font-size: 1.1rem; }
   align-items: start;
 }
 
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.chip-x {
+  font: inherit;
+  border: none;
+  background: none;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+
+.dot.on { background: var(--accent); border-color: var(--accent); }
+
+.badge {
+  background: var(--danger);
+  color: var(--surface);
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.card-on { border: 2px solid var(--accent); }
+
 @media (max-width: 900px) {
   .sheet-grid { grid-template-columns: 1fr; }
   .field { max-width: 100%; }

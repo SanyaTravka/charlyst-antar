@@ -180,6 +180,49 @@ h3 { font-size: 1.1rem; }
   align-items: start;
 }
 
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.chip-x {
+  font: inherit;
+  border: none;
+  background: none;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+
+.dot.on { background: var(--accent); border-color: var(--accent); }
+
+.badge {
+  background: var(--danger);
+  color: var(--surface);
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.card-on { border: 2px solid var(--accent); }
+
 @media (max-width: 900px) {
   .sheet-grid { grid-template-columns: 1fr; }
   .field { max-width: 100%; }
@@ -1975,6 +2018,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   let humanModalOpen = false;
   let humanPickA = null;
   let weaponModalOpen = false;
+  let condModalOpen = false;
+  let exhModalOpen = false;
   let lastDice = null;
 
   function el(html) {
@@ -2577,6 +2622,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
       return;
     }
     page.appendChild(sheetHeader(char));
+    page.appendChild(trackerBlock(char));
     page.appendChild(tabBar());
     if (state.tab === 'specs') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Специализации» пока не готова.</p></div>'));
     else if (state.tab === 'spells') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Заклинания» пока не готова.</p></div>'));
@@ -2585,6 +2631,156 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else renderOverview(page, char);
     app.appendChild(page);
     if (weaponModalOpen) app.appendChild(weaponModal());
+    if (condModalOpen) app.appendChild(condModal(char));
+    if (exhModalOpen) app.appendChild(exhModal());
+  }
+
+  function trackerBlock(char) {
+    const tr = CALC.trait(char, DATA);
+    const card = el('<div class="card" style="margin-bottom:1rem;"></div>');
+    card.appendChild(el('<h3 style="margin-top:0;">Боевой трекер</h3>'));
+    card.appendChild(barRow(char, 'Хиты', char.hp, 'hp', true));
+    card.appendChild(barRow(char, 'Запас сил', char.stamina, 'stamina', false));
+    card.appendChild(barRow(char, 'Мана', char.mana, 'mana', false));
+    if (char.hp.current <= 0) card.appendChild(deathPanel(char));
+    const exhaustion = el(`
+      <div class="row between" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <span class="muted">Истощение</span>
+        <div class="row">
+          <button class="btn" data-action="exh-dec"${dis(char.exhaustion <= 0)}>−</button>
+          <strong style="min-width:2rem;text-align:center;${char.exhaustion >= 6 ? 'color:var(--danger);' : ''}">${char.exhaustion}</strong>
+          <button class="btn" data-action="exh-inc"${dis(char.exhaustion >= 6)}>+</button>
+          <button class="btn" data-action="exh-open">Степени 1–6</button>
+        </div>
+      </div>
+    `);
+    card.appendChild(exhaustion);
+    const injuries = el(`
+      <div class="row" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <span class="muted">Травмы</span>
+        ${['head', 'arms', 'torso', 'legs'].map(k => `
+          <label class="row" style="margin:0;gap:0.3rem;cursor:pointer;">
+            <input type="checkbox" data-action="injury-set" data-id="${k}"${char.injuries[k] ? ' checked' : ''}>
+            <span class="small">${esc(DATA.injuries[k].name)}</span>
+          </label>
+        `).join('')}
+      </div>
+    `);
+    card.appendChild(injuries);
+    const conds = el(`
+      <div class="row" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);align-items:flex-start;">
+        <span class="muted">Состояния</span>
+        ${char.conditions.map(id => {
+          const c = DATA.conditions[id] || { name: id };
+          return `<span class="chip">${esc(c.name)}<button class="chip-x" data-action="cond-del" data-id="${esc(id)}">×</button></span>`;
+        }).join('')}
+        <button class="btn" data-action="cond-open">+</button>
+      </div>
+    `);
+    card.appendChild(conds);
+    const hints = [];
+    if (tr && tr.rerollInit) hints.push('Живчик: 3 броска d20, лучший');
+    if (char.traitId === 't16') hints.push('Параноик: −10');
+    if (char.traitId === 't10') hints.push('Косноязычный: −2 после вербального заклинания (вручную)');
+    const initRow = el(`
+      <div class="row" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <button class="btn" data-action="init-roll">Бросок инициативы</button>
+        <span class="small muted">d20 + скорость${tr && tr.rerollInit ? ' (3 броска)' : ''}${char.traitId === 't16' ? ' − 10' : ''}</span>
+      </div>
+    `);
+    if (hints.length) {
+      initRow.appendChild(el(`<p class="small muted" style="width:100%;margin:0.35rem 0 0;">${hints.map(esc).join('<br>')}</p>`));
+    }
+    card.appendChild(initRow);
+    const turnRow = el(`
+      <div class="row" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <button class="btn" data-action="new-turn">Новый ход</button>
+        ${tr && tr.inspirationDaily ? `<button class="btn" data-action="new-day">Новый день</button>` : ''}
+      </div>
+    `);
+    card.appendChild(turnRow);
+    return card;
+  }
+
+  function barRow(char, label, pool, key, low) {
+    const isLow = low && pool.max > 0 && pool.current <= pool.max / 3;
+    const pct = pool.max > 0 ? Math.round((pool.current / pool.max) * 100) : 0;
+    return el(`
+      <div style="margin:0.6rem 0;">
+        <div class="row between">
+          <strong>${esc(label)}</strong>
+          <span class="muted small">${pool.current} / ${pool.max}${isLow ? ' · низкий уровень: скорость и уклонение вдвое' : ''}</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%;${isLow ? 'background:var(--danger);' : ''}"></div></div>
+        <div class="row" style="margin-top:0.35rem;">
+          <button class="btn" data-action="pool-dec" data-id="${key}">−1</button>
+          <button class="btn" data-action="pool-dec5" data-id="${key}">−5</button>
+          <button class="btn" data-action="pool-inc" data-id="${key}">+1</button>
+          <button class="btn" data-action="pool-rest" data-id="${key}">Восстановить</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function deathPanel(char) {
+    const dots = key => [1, 2, 3].map(i => `
+      <button class="dot${char.deathSaves[key] >= i ? ' on' : ''}" data-action="death-toggle" data-id="${key}" data-index="${i}" title="${key === 'success' ? 'Успех' : 'Провал'}"></button>
+    `).join('');
+    return el(`
+      <div class="card" style="margin-top:0.75rem;background:#f6e3da;">
+        <div class="row between">
+          <strong>Спасброски от смерти</strong>
+          ${char.deathSaves.fail >= 2 ? '<span class="badge">СМЕРТЬ</span>' : ''}
+        </div>
+        <div class="row" style="margin-top:0.5rem;">
+          <span class="small muted">Успех</span>${dots('success')}
+          <span class="small muted" style="margin-left:0.75rem;">Провал</span>${dots('fail')}
+        </div>
+        <p class="small muted" style="margin:0.5rem 0 0;">2 провала — смерть персонажа.</p>
+      </div>
+    `);
+  }
+
+  function condModal(char) {
+    const list = Object.keys(DATA.conditions).map(id => {
+      const c = DATA.conditions[id];
+      const on = char.conditions.indexOf(id) !== -1;
+      return `
+        <div class="card${on ? ' card-on' : ''}" data-action="cond-toggle" data-id="${esc(id)}" style="cursor:pointer;margin:0.25rem;">
+          <div class="row between"><strong>${esc(c.name)}</strong><span class="small muted">${on ? 'вкл' : 'выкл'}</span></div>
+          <p class="small muted" style="margin:0.25rem 0 0;">${esc(c.desc)}</p>
+        </div>
+      `;
+    }).join('');
+    return el(`
+      <div class="wizard-overlay" data-action="cond-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;">
+        <div class="card wizard-modal" data-action="cond-stop" style="max-width:640px;width:100%;max-height:80vh;overflow:auto;">
+          <div class="row between">
+            <h3>Состояния</h3>
+            <button class="btn btn-danger" data-action="cond-close">×</button>
+          </div>
+          <div class="grid" style="grid-template-columns:1fr;">${list}</div>
+        </div>
+      </div>
+    `);
+  }
+
+  function exhModal() {
+    const list = [1, 2, 3, 4, 5, 6].map(n => {
+      const e = DATA.exhaustion[n];
+      return `<div class="card" style="margin:0.25rem;"><strong>${esc(n)} — ${esc(e.name)}</strong><p class="small muted" style="margin:0.25rem 0 0;">${esc(e.desc)}</p></div>`;
+    }).join('');
+    return el(`
+      <div class="wizard-overlay" data-action="exh-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;">
+        <div class="card wizard-modal" data-action="exh-stop" style="max-width:520px;width:100%;max-height:80vh;overflow:auto;">
+          <div class="row between">
+            <h3>Степени истощения</h3>
+            <button class="btn btn-danger" data-action="exh-close">×</button>
+          </div>
+          ${list}
+        </div>
+      </div>
+    `);
   }
 
   function calcFull(char) {
@@ -2672,11 +2868,6 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   }
 
   function battleBlock(char, out) {
-    const tr = CALC.trait(char, DATA);
-    const hints = [];
-    if (tr && tr.rerollInit) hints.push('Живчик: 3 броска d20, берём лучший');
-    if (char.traitId === 't16') hints.push('Параноик: −10');
-    if (char.traitId === 't10') hints.push('Косноязычный: −2, если кастовали вербальное заклинание (вручную)');
     const rows = [
       ['Хиты', String(out.hp)],
       ['Запас сил', String(out.stamina)],
@@ -2687,15 +2878,6 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const box = el('<div></div>');
     for (const [k, v] of rows) {
       box.appendChild(el(`<div class="row between" style="padding:0.3rem 0;border-bottom:1px solid var(--border);"><span class="muted">${esc(k)}</span><strong>${esc(v)}</strong></div>`));
-    }
-    box.appendChild(el(`
-      <div class="row" style="padding:0.3rem 0;border-bottom:1px solid var(--border);">
-        <button class="btn" data-action="init-roll">Инициатива</button>
-        <span class="small muted">d20 + скорость${tr && tr.rerollInit ? ' (3 броска)' : ''}${char.traitId === 't16' ? ' − 10' : ''}</span>
-      </div>
-    `));
-    if (hints.length) {
-      box.appendChild(el(`<p class="small muted" style="margin:0.5rem 0 0;">${hints.map(esc).join('<br>')}</p>`));
     }
     box.appendChild(el(`
       <div class="row between" style="padding:0.3rem 0;">
@@ -2973,6 +3155,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'check-roll') checkRoll(t);
     else if (action === 'init-roll') initRoll();
     else if (action === 'reroll') rerollDice();
+    else if (action === 'pool-dec') poolDelta(id, -1);
+    else if (action === 'pool-dec5') poolDelta(id, -5);
+    else if (action === 'pool-inc') poolDelta(id, 1);
+    else if (action === 'pool-rest') poolDelta(id, null);
+    else if (action === 'death-toggle') deathToggle(id, parseInt(t.getAttribute('data-index'), 10));
+    else if (action === 'exh-inc') exhInc();
+    else if (action === 'exh-dec') exhDec();
+    else if (action === 'exh-open') { exhModalOpen = true; render(); }
+    else if (action === 'exh-close') { exhModalOpen = false; render(); }
+    else if (action === 'exh-stop') {}
+    else if (action === 'cond-open') { condModalOpen = true; render(); }
+    else if (action === 'cond-close') { condModalOpen = false; render(); }
+    else if (action === 'cond-stop') {}
+    else if (action === 'cond-toggle') condToggle(id);
+    else if (action === 'cond-del') condDel(id);
+    else if (action === 'new-turn') newTurn();
+    else if (action === 'new-day') newDay();
   }
 
   function handleInput(e) {
@@ -2991,6 +3190,89 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const action = t.getAttribute('data-action');
     if (action === 'armor-set') armorSet(t.value);
     else if (action === 'shield-set') shieldSet(t.value);
+    else if (action === 'injury-set') injurySet(t.getAttribute('data-id'), t.checked);
+  }
+
+  function injurySet(k, on) {
+    mutate(() => {
+      const char = currentChar();
+      if (char) char.injuries[k] = !!on;
+    });
+  }
+
+  function poolDelta(key, d) {
+    mutate(() => {
+      const char = currentChar();
+      if (!char || !char[key]) return;
+      const p = char[key];
+      if (d === null) p.current = p.max;
+      else p.current = Math.max(0, Math.min(p.max, p.current + d));
+    });
+  }
+
+  function deathToggle(key, i) {
+    mutate(() => {
+      const char = currentChar();
+      if (!char) return;
+      char.deathSaves[key] = char.deathSaves[key] === i ? 0 : i;
+    });
+  }
+
+  function exhInc() {
+    mutate(() => {
+      const char = currentChar();
+      if (char && char.exhaustion < 6) char.exhaustion += 1;
+    });
+  }
+
+  function exhDec() {
+    mutate(() => {
+      const char = currentChar();
+      if (char && char.exhaustion > 0) char.exhaustion -= 1;
+    });
+  }
+
+  function condToggle(id) {
+    mutate(() => {
+      const char = currentChar();
+      if (!char) return;
+      const i = char.conditions.indexOf(id);
+      if (i === -1) char.conditions.push(id);
+      else char.conditions.splice(i, 1);
+    });
+  }
+
+  function condDel(id) {
+    mutate(() => {
+      const char = currentChar();
+      if (!char) return;
+      const i = char.conditions.indexOf(id);
+      if (i !== -1) char.conditions.splice(i, 1);
+    });
+  }
+
+  function newTurn() {
+    const char = currentChar();
+    if (!char) return;
+    const tr = CALC.trait(char, DATA);
+    if (tr && tr.marathoner) {
+      mutate(() => {
+        char.stamina.current = Math.min(char.stamina.max, char.stamina.current + 1);
+        char.mana.current = Math.min(char.mana.max, char.mana.current + 1);
+      });
+      toast('Ход обновлён: Марафонец восстановил 1 запас сил и 1 ману.');
+    } else {
+      toast('Ход обновлён.');
+    }
+  }
+
+  function newDay() {
+    const char = currentChar();
+    if (!char) return;
+    const tr = CALC.trait(char, DATA);
+    if (!tr || !tr.inspirationDaily) return;
+    mutate(() => { char.inspiration = tr.inspirationDaily; });
+    toast('Новый день: вдохновение обновлено (' + tr.inspirationDaily + ').');
   }
 
   function nameSet(v) {
