@@ -42,6 +42,8 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
+  function dis(v) { return v ? ' disabled style="opacity:0.55;cursor:default"' : ''; }
+
   function goto(screen) {
     state.screen = screen;
     render();
@@ -181,7 +183,9 @@
     if (w.step === 1) wizardStep1(box);
     else if (w.step === 2) wizardStep2(box);
     else if (w.step === 3) wizardStep3(box);
-    else box.appendChild(el('<p class="muted">(не готово)</p>'));
+    else if (w.step === 4) wizardStep4(box);
+    else if (w.step === 5) wizardStep5(box);
+    else wizardStep6(box);
     page.appendChild(box);
     page.appendChild(wizardNav());
     app.appendChild(page);
@@ -289,13 +293,268 @@
     }
   }
 
+  function specRequired(d) {
+    return d.traitId === 't19' ? 5 : 4;
+  }
+
+  function pointsLeft(d) {
+    return 27 - CALC.ATTRS.reduce((s, a) => s + (d.attrs[a] - 8), 0);
+  }
+
+  function attrMax(d, a) {
+    let m = 18;
+    const t = d.traitId ? DATA.traits[d.traitId] : null;
+    if (t && t.vitCap && a === 'живучесть') m = Math.min(m, t.vitCap);
+    const r = d.raceId ? DATA.races[d.raceId] : null;
+    if (r && r.attrCaps && r.attrCaps[a]) m = Math.min(m, r.attrCaps[a]);
+    return m;
+  }
+
+  function attrInc(a) {
+    mutate(() => {
+      const d = state.wizard.draft;
+      if (d.attrs[a] >= attrMax(d, a) || pointsLeft(d) <= 0) return;
+      let v = d.attrs[a] + 1;
+      if (d.traitId === 't12' && a === 'интеллект' && v === 9) v = 10;
+      d.attrs[a] = v;
+    });
+  }
+
+  function attrDec(a) {
+    mutate(() => {
+      const d = state.wizard.draft;
+      if (d.attrs[a] <= 8) return;
+      let v = d.attrs[a] - 1;
+      if (d.traitId === 't12' && a === 'интеллект' && v === 9) v = 8;
+      d.attrs[a] = v;
+    });
+  }
+
+  function wizardStep4(container) {
+    const d = state.wizard.draft;
+    const left = pointsLeft(d);
+    const fin = CALC.attrFinal(d, DATA);
+    const mds = CALC.mods(d, DATA);
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.5rem;">
+        <h3 style="margin:0;">Осталось очков: ${left}</h3>
+        <span class="muted small">27 очков поверх значения 8</span>
+      </div>
+    `));
+    for (const a of CALC.ATTRS) {
+      const cur = d.attrs[a];
+      const max = attrMax(d, a);
+      const note = [];
+      if (max < 18) note.push('макс ' + max);
+      if (d.traitId === 't12' && a === 'интеллект') note.push('без 9');
+      container.appendChild(el(`
+        <div class="row between" style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+          <div>
+            <strong>${esc(a)}</strong>
+            <div class="small muted">Финал: ${fin[a]} · Модификатор: ${mds[a] >= 0 ? '+' + mds[a] : mds[a]}${note.length ? ' · ' + esc(note.join(' · ')) : ''}</div>
+          </div>
+          <div class="row">
+            <button class="btn" data-action="attr-minus" data-id="${esc(a)}"${dis(cur <= 8)}>−</button>
+            <strong style="min-width:1.6rem;text-align:center;">${cur}</strong>
+            <button class="btn" data-action="attr-plus" data-id="${esc(a)}"${dis(left <= 0 || cur >= max)}>+</button>
+          </div>
+        </div>
+      `));
+    }
+  }
+
+  function pickSpec(id) {
+    const d = state.wizard.draft;
+    if (d.raceId === 'gnome') {
+      const s = DATA.specializations[id];
+      if (s && s.somatic) return;
+    }
+    mutate(() => {
+      const i = d.specializations.indexOf(id);
+      if (i !== -1) d.specializations.splice(i, 1);
+      else if (d.specializations.length < specRequired(d)) d.specializations.push(id);
+    });
+  }
+
+  function wizardStep5(container) {
+    const d = state.wizard.draft;
+    const need = specRequired(d);
+    const gnome = d.raceId === 'gnome';
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.5rem;">
+        <h3 style="margin:0;">Выбрано специализаций: ${d.specializations.length} из ${need}</h3>
+        <span class="muted small">Телесные недоступны гномам</span>
+      </div>
+    `));
+    const grid = el('<div class="grid"></div>');
+    for (const id in DATA.specializations) {
+      const s = DATA.specializations[id];
+      const sel = d.specializations.indexOf(id) !== -1;
+      const off = gnome && s.somatic;
+      const full = !sel && d.specializations.length >= need;
+      grid.appendChild(el(`
+        <div class="card char-card" data-action="spec" data-id="${esc(id)}"
+          style="${sel ? 'border:2px solid var(--accent);' : ''}${off || full ? 'opacity:0.5;cursor:default;' : ''}">
+          <div class="row between">
+            <h3 style="margin:0;">${esc(s.name)}</h3>
+            <span class="muted small">${s.somatic ? 'телесная' : 'приобретённая'}${s.empty ? ' · ждём редакций' : ''}</span>
+          </div>
+          ${s.desc ? `<p class="small muted">${esc(s.desc)}</p>` : ''}
+          ${off ? '<p class="small muted">Недоступна гномам</p>' : ''}
+        </div>
+      `));
+    }
+    container.appendChild(grid);
+  }
+
+  function fmtOS(n) {
+    return String(n);
+  }
+
+  function wizardStep6(container) {
+    const d = state.wizard.draft;
+    const total = CALC.totalOS(d, DATA);
+    const maxTier = CALC.tier(d.level);
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.5rem;">
+        <h3 style="margin:0;">ОС: ${total} (${d.level} уровень)</h3>
+        <span class="muted small">Потрачено: ${fmtOS(d.spentOS)} из ${total}</span>
+      </div>
+    `));
+    for (const sid of d.specializations) {
+      const s = DATA.specializations[sid];
+      container.appendChild(el(`<h4 style="margin:1rem 0 0.25rem;">${esc(s ? s.name : sid)}</h4>`));
+      const ids = Object.keys(DATA.allAbilities).filter(id => {
+        const ab = DATA.allAbilities[id];
+        return ab.specId === sid && ab.tier <= maxTier;
+      });
+      if (ids.length === 0) {
+        container.appendChild(el('<p class="small muted">Способности тира 1 ещё не готовы.</p>'));
+        continue;
+      }
+      for (const id of ids) {
+        const ab = DATA.allAbilities[id];
+        const cost = CALC.abilityCost(DATA, id);
+        const owned = d.abilities.indexOf(id) !== -1;
+        container.appendChild(el(`
+          <div class="card" style="margin-top:0.5rem;">
+            <div class="row between">
+              <strong>${esc(ab.name)} <span class="muted small">Тир ${ab.tier} · ${fmtOS(cost)} ОС</span></strong>
+              ${owned
+                ? `<button class="btn btn-danger" data-action="ability-sell" data-id="${esc(id)}">Отдать</button>`
+                : `<button class="btn" data-action="ability-buy" data-id="${esc(id)}"${dis(d.spentOS + cost > total)}>Взять</button>`}
+            </div>
+            <p class="small muted" style="margin:0.5rem 0 0;">${esc(ab.desc)}</p>
+          </div>
+        `));
+      }
+    }
+    container.appendChild(el(`
+      <div class="card" style="margin-top:1rem;">
+        <div class="row">
+          <button class="btn" data-action="os-bonus" data-id="both"${dis(d.spentOS + 1 > total)}>+1 ЗС и +1 мана за 1 ОС</button>
+          <button class="btn" data-action="os-bonus" data-id="hp"${dis(d.spentOS + 1 > total)}>+5 HP за 1 ОС</button>
+        </div>
+        <p class="small muted" style="margin-top:0.5rem;">Бонусы: ЗС +${d.osBonuses.stamina} · Мана +${d.osBonuses.mana} · HP +${d.osBonuses.hp}</p>
+      </div>
+    `));
+    if (d.traitId === 't17') {
+      const block = el('<div class="card" style="margin-top:1rem;"></div>');
+      block.appendChild(el('<div class="row between"><h3 style="margin:0;">Потенциал</h3><span class="muted small">+10 к запасу сил или мане</span></div>'));
+      if (!d.potentialRolled) {
+        block.appendChild(el('<div class="row" style="margin-top:0.5rem;"><button class="btn" data-action="potential-roll">Кинуть d10</button></div>'));
+      } else {
+        block.appendChild(el(`<p class="small muted" style="margin-top:0.5rem;">Бросок: ${d.potentialPoints} очков.</p>`));
+        if (!d.potentialTo) {
+          block.appendChild(el(`
+            <div class="row" style="margin-top:0.5rem;">
+              <button class="btn" data-action="potential-to" data-id="stamina">В запас сил</button>
+              <button class="btn" data-action="potential-to" data-id="mana">В ману</button>
+            </div>
+          `));
+        } else {
+          block.appendChild(el(`<p class="small" style="margin-top:0.5rem;">Направлено: ${d.potentialTo === 'stamina' ? 'в запас сил' : 'в ману'}</p>`));
+        }
+      }
+      container.appendChild(block);
+    }
+    container.appendChild(el(`
+      <div class="row" style="margin-top:1rem;">
+        <button class="btn" data-action="char-create"${dis(d.spentOS > total)}>Создать персонажа</button>
+      </div>
+    `));
+  }
+
+  function buyAbility(id) {
+    mutate(() => {
+      const d = state.wizard.draft;
+      if (d.abilities.indexOf(id) !== -1) return;
+      const cost = CALC.abilityCost(DATA, id);
+      if (d.spentOS + cost > CALC.totalOS(d, DATA)) return;
+      d.abilities.push(id);
+      d.spentOS += cost;
+    });
+  }
+
+  function sellAbility(id) {
+    mutate(() => {
+      const d = state.wizard.draft;
+      const i = d.abilities.indexOf(id);
+      if (i === -1) return;
+      d.abilities.splice(i, 1);
+      d.spentOS -= CALC.abilityCost(DATA, id);
+    });
+  }
+
+  function osBonus(kind) {
+    mutate(() => {
+      const d = state.wizard.draft;
+      if (d.spentOS + 1 > CALC.totalOS(d, DATA)) return;
+      d.spentOS += 1;
+      if (kind === 'hp') d.osBonuses.hp += 5;
+      else { d.osBonuses.stamina += 1; d.osBonuses.mana += 1; }
+    });
+  }
+
+  function potentialRoll() {
+    mutate(() => {
+      const n = 1 + Math.floor(Math.random() * 10);
+      state.wizard.draft.potentialRolled = true;
+      state.wizard.draft.potentialPoints = 10 + n;
+      state.wizard.draft.potentialTo = null;
+    });
+  }
+
+  function potentialTo(target) {
+    mutate(() => { state.wizard.draft.potentialTo = target; });
+  }
+
+  function createChar() {
+    const d = state.wizard.draft;
+    if (d.spentOS > CALC.totalOS(d, DATA)) return;
+    if (d.potentialTo === 'stamina' || d.potentialTo === 'mana') {
+      d.osBonuses[d.potentialTo] += d.potentialPoints;
+    }
+    const c = STORE.normalize(d);
+    delete c.potentialRolled;
+    delete c.potentialPoints;
+    delete c.potentialTo;
+    c.hp.current = c.hp.max = CALC.maxHp(c, DATA);
+    c.stamina.current = c.stamina.max = CALC.maxStamina(c, DATA);
+    c.mana.current = c.mana.max = CALC.maxMana(c, DATA);
+    mutate(() => {
+      state.chars.push(c);
+      state.currentId = c.id;
+      state.screen = 'sheet';
+    });
+  }
+
   function wizardNav() {
     const w = state.wizard;
-    const dis = (v) => v ? '' : ' disabled style="opacity:0.55;cursor:default"';
     return el(`
       <div class="row between" style="margin-top:1rem;">
-        <button class="btn" data-action="wizard-back"${dis(w.step > 1)}>← Назад</button>
-        <button class="btn" data-action="wizard-next"${dis(wizardCanNext())}>Далее →</button>
+        <button class="btn" data-action="wizard-back"${dis(w.step <= 1)}>← Назад</button>
+        <button class="btn" data-action="wizard-next"${dis(!wizardCanNext())}>Далее →</button>
       </div>
     `);
   }
@@ -305,7 +564,9 @@
     return w.step === 1 ? !!w.draft.raceId
       : w.step === 2 ? !!w.draft.statusId
       : w.step === 3 ? !!w.draft.traitRolled
-      : w.step < 6;
+      : w.step === 4 ? pointsLeft(w.draft) === 0
+      : w.step === 5 ? w.draft.specializations.length === specRequired(w.draft)
+      : false;
   }
 
   function humanModal() {
@@ -355,6 +616,15 @@
     else if (action === 'human-close') humanClose();
     else if (action === 'trait-roll') traitRoll();
     else if (action === 'trait-skip') traitSkip();
+    else if (action === 'attr-plus') attrInc(id);
+    else if (action === 'attr-minus') attrDec(id);
+    else if (action === 'spec') pickSpec(id);
+    else if (action === 'ability-buy') buyAbility(id);
+    else if (action === 'ability-sell') sellAbility(id);
+    else if (action === 'os-bonus') osBonus(id);
+    else if (action === 'potential-roll') potentialRoll();
+    else if (action === 'potential-to') potentialTo(id);
+    else if (action === 'char-create') createChar();
     else if (action === 'wizard-back') wizardBack();
     else if (action === 'wizard-next') wizardNext();
   }
