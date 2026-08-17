@@ -26,7 +26,7 @@ const CALC = (function () {
 
   function sumOs(level, DATA) {
     let s = 0;
-    for (let l = 1; l <= Math.min(level, 10); l++) s += DATA.osByLevel[l] || 0;
+    for (let l = 1; l <= Math.min(level, 15); l++) s += DATA.osByLevel[l] || 0;
     return s;
   }
 

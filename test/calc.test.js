@@ -18,7 +18,7 @@ const FIXTURE = {
     dumb: { num: 12, name: 'Тупой', osPerLevel: -1, intNot9: true },
     fragile: { num: 18, name: 'Хрупкий', vitCap: 9 },
   },
-  osByLevel: { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3 },
+  osByLevel: { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3, 11: 3, 12: 2, 13: 2, 14: 2, 15: 3 },
   abilities: {
     za: 'x',
   },
@@ -101,7 +101,11 @@ test('totalOS with adaptive and dumb traits', () => {
   const c2 = baseChar({ level: 3, traitId: 'dumb' });
   assert.equal(CALC.totalOS(c2, DATA), (3 + 2 + 2) - 3);  // 4 = Σ1..3 − 3 за «Тупой»
   const c3 = baseChar({ level: 11 });
-  assert.equal(CALC.totalOS(c3, DATA), 3 + 2 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 3); // 24, только 1..10
+  assert.equal(CALC.totalOS(c3, DATA), 27);
+  const c4 = baseChar({ level: 15 });
+  assert.equal(CALC.totalOS(c4, DATA), 36);
+  const c5 = baseChar({ level: 16 });
+  assert.equal(CALC.totalOS(c5, DATA), 36);
 });
 
 test('abilityCost: телесные 1, приобретённые 0.5', () => {

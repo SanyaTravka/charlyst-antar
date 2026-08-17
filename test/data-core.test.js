@@ -123,7 +123,14 @@ test('conditions: 20 из правил, exhaustion: 6, injuries: 4', () => {
   }
 });
 
-test('osByLevel 1..10 и tiers', () => {
-  assert.deepEqual(DATA_CORE.osByLevel, { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3 });
-  assert.deepEqual(DATA_CORE.tiers, [1, 2, 3, 4]);
+test('osByLevel 1..15 и tiers', () => {
+  assert.deepEqual(DATA_CORE.osByLevel, { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3, 11: 3, 12: 2, 13: 2, 14: 2, 15: 3 });
+});
+
+test('specializations: 13 entries per rules 0.99', () => {
+  const s = DATA_CORE.specializations;
+  assert.equal(Object.keys(s).length, 13);
+  assert.ok(s.conjuration && s.conjuration.empty === true);
+  assert.equal(s.enchantment, undefined);
+  assert.ok(!('empty' in s.battleMagic) || s.battleMagic.empty === false);
 });

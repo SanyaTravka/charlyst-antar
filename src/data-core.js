@@ -200,9 +200,8 @@ const DATA_CORE = {
     restoration: { name: 'Восстановление', somatic: false },
     antimagic: { name: 'Антимагия', somatic: false },
     illusion: { name: 'Иллюзия', somatic: false },
-    enchantment: { name: 'Очарование', somatic: false, empty: true },
     curses: { name: 'Проклятия', somatic: false },
-    battleMagic: { name: 'Воинская магия', somatic: false, empty: true },
+    battleMagic: { name: 'Воинская магия', somatic: false },
     manifestation: { name: 'Проявление', somatic: false },
   },
   weapons: {
@@ -221,8 +220,8 @@ const DATA_CORE = {
     twoHandedHammer: { name: 'Двуручный молот', kind: 'ударно-дробящее', speed: 1, props: '- 1 к парированию', reach: '2 клетки', damage: '3d12+мод.Силы дробящего или колющего', twoHanded: true },
     shortBow: { name: 'Короткий лук', kind: 'дальнобойное', speed: 2, props: '', reach: '200 футов прицельной стрельбы', damage: '2d6+мод.Силы колющего' },
     longBow: { name: 'Длинный лук', kind: 'дальнобойное', speed: 2, props: '', reach: 'до 250 футов прицельной стрельбы', damage: '2d8+мод.Силы колющего' },
-    lightCrossbow: { name: 'Лёгкий арбалет', kind: 'дальнобойное', speed: 1, props: '', reach: 'до 300 футов прицельной стрельбы', damage: '2d10 колющего' },
-    heavyCrossbow: { name: 'Тяжелый арбалет', kind: 'дальнобойное', speed: 1, props: '', reach: 'до 450 футов прицельной стрельбы', damage: '3d12 колющего' },
+    lightCrossbow: { name: 'Лёгкий арбалет', kind: 'дальнобойное', speed: 1, props: '', reach: 'до 300 футов прицельной стрельбы', damage: '10+2d10 колющего' },
+    heavyCrossbow: { name: 'Тяжелый арбалет', kind: 'дальнобойное', speed: 1, props: '', reach: 'до 450 футов прицельной стрельбы', damage: '15+2d12 колющего' },
     dart: { name: 'Дротик', kind: 'дальнобойное', speed: 2, props: '', reach: 'ваш мод.Силы×25', damage: '2d10+мод.Силы колющего' },
   },
   armor: {
@@ -285,7 +284,7 @@ const DATA_CORE = {
     5: { name: 'Скорость снижается до 0', desc: 'Скорость снижается до 0' },
     6: { name: 'Смерть', desc: 'Смерть' },
   },
-  osByLevel: { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3 },
+  osByLevel: { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3, 11: 3, 12: 2, 13: 2, 14: 2, 15: 3 },
   tiers: [1, 2, 3, 4],
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = { DATA_CORE };
