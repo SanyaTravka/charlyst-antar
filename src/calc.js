@@ -35,6 +35,7 @@ const CALC = (function () {
     const t = trait(char, DATA);
     if (t && t.osEvery3Levels) s += Math.floor(char.level / 3);
     if (t && t.osPerLevel) s += t.osPerLevel * char.level;
+    s += char.extraOS || 0;
     return s;
   }
 
