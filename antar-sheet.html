@@ -2012,7 +2012,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview' };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '' };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -2623,7 +2623,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     page.appendChild(trackerBlock(char));
     page.appendChild(tabBar());
     if (state.tab === 'specs') renderSpecs(page, char);
-    else if (state.tab === 'spells') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Заклинания» пока не готова.</p></div>'));
+    else if (state.tab === 'spells') renderSpells(page, char);
     else if (state.tab === 'refbook') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Справочник» пока не готова.</p></div>'));
     else if (state.tab === 'notes') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Заметки» пока не готова.</p></div>'));
     else renderOverview(page, char);
@@ -2834,6 +2834,99 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   function tierRange(t) {
     const lo = 5 * t - 4, hi = 5 * t;
     return 'уровень ' + lo + '–' + hi;
+  }
+
+  const MAGIC_SPECS = ['manifestation', 'restoration', 'transmutation', 'illusion', 'warding', 'antimagic', 'curses'];
+
+  function costLabel(ab) {
+    if (typeof ab.cost === 'string') return ab.cost;
+    if (ab.cost && typeof ab.cost === 'object') {
+      return Object.keys(ab.cost).map(k => ab.cost[k] + ' ' + (k === 'mana' ? 'маны' : 'запаса сил')).join(', ');
+    }
+    return '—';
+  }
+
+  function renderSpells(container, char) {
+    const total = CALC.totalOS(char, DATA);
+    const q = String(state.spellQuery || '').trim().toLowerCase();
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.75rem;">
+        <h3 style="margin:0;">Заклинания</h3>
+        <span class="muted">ОС: ${char.spentOS} / ${total}</span>
+      </div>
+    `));
+    container.appendChild(el(`
+      <input class="field" style="width:100%;margin-bottom:1rem;" data-action="spell-search" placeholder="Поиск по названию или тексту" value="${esc(state.spellQuery)}">
+    `));
+    for (const sid of MAGIC_SPECS) {
+      const spec = DATA.specializations[sid];
+      if (!spec) continue;
+      const card = el('<div class="card" style="margin-bottom:1rem;"></div>');
+      card.appendChild(el(`<h3 style="margin-top:0;">${esc(spec.name)}</h3>`));
+      let shown = 0;
+      for (let t = 1; t <= 4; t++) {
+        const ids = Object.keys(DATA.allAbilities).filter(id => {
+          const ab = DATA.allAbilities[id];
+          return ab && ab.specId === sid && ab.tier === t;
+        });
+        if (!ids.length) continue;
+        const group = el(`<h4 style="margin:0.75rem 0 0.25rem;">Тир ${t} <span class="muted small">(${tierRange(t)})</span></h4>`);
+        let groupShown = 0;
+        for (const id of ids) {
+          const ab = DATA.allAbilities[id];
+          if (q && ab.name.toLowerCase().indexOf(q) === -1 && String(ab.desc || '').toLowerCase().indexOf(q) === -1) continue;
+          group.appendChild(spellCard(char, id));
+          groupShown++;
+        }
+        if (groupShown) {
+          card.appendChild(group);
+          shown += groupShown;
+        }
+      }
+      if (!shown) {
+        card.appendChild(el(`<p class="small muted">${q ? 'Ничего не найдено по запросу «' + esc(state.spellQuery) + '».' : 'В этой школе пока нет заклинаний.'}</p>`));
+      }
+      container.appendChild(card);
+    }
+  }
+
+  function spellCard(char, id) {
+    const ab = DATA.allAbilities[id];
+    const tierMax = CALC.tier(char.level);
+    const cost = CALC.abilityCost(DATA, id);
+    const owned = char.abilities.indexOf(id) !== -1;
+    let btn;
+    if (owned) {
+      btn = '<span class="badge" style="background:var(--success);">Выучено</span>';
+    } else if (ab.tier > tierMax) {
+      btn = `<button class="btn" data-action="spell-buy" data-id="${esc(id)}" disabled style="opacity:0.55;cursor:default;">Требуется тир ${ab.tier} (${esc(tierRange(ab.tier))})</button>`;
+    } else if (char.spentOS + cost > CALC.totalOS(char, DATA)) {
+      btn = `<button class="btn" data-action="spell-buy" data-id="${esc(id)}" disabled style="opacity:0.55;cursor:default;">Не хватает ОС</button>`;
+    } else {
+      btn = `<button class="btn" data-action="spell-buy" data-id="${esc(id)}">Выучить</button>`;
+    }
+    const fields = [
+      ab.tier ? 'Тир ' + ab.tier : '',
+      ab.type === 'passive' ? 'пассивное' : 'активное',
+      ab.components ? 'Компоненты: ' + ab.components : '',
+      'Затрата: ' + costLabel(ab),
+      ab.castTime ? 'Время: ' + ab.castTime : '',
+      ab.duration ? 'Длительность: ' + ab.duration : '',
+      ab.range ? 'Дистанция: ' + ab.range : '',
+    ].filter(Boolean);
+    return el(`
+      <div class="card" style="margin:0.5rem 0;">
+        <div class="row between">
+          <strong>${esc(ab.name)}</strong>
+          ${btn}
+        </div>
+        ${fields.length ? `<p class="small muted" style="margin:0.35rem 0 0;">${fields.map(esc).join(' · ')}</p>` : ''}
+        <details style="margin-top:0.4rem;">
+          <summary class="small muted" style="cursor:pointer;">Текст заклинания</summary>
+          <p class="small" style="margin:0.35rem 0 0;">${esc(ab.desc)}</p>
+        </details>
+      </div>
+    `);
   }
 
   function abilityCostLabel(id) {
@@ -3392,6 +3485,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'custom-del') removeCustomAbility(currentChar(), parseInt(id, 10));
     else if (action === 'os-plus') osBonusChar(currentChar(), id, 1);
     else if (action === 'os-minus') osBonusChar(currentChar(), id, -1);
+    else if (action === 'spell-buy') buyAbility(currentChar(), id);
   }
 
   function handleInput(e) {
@@ -3402,6 +3496,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     if (action === 'name-set') nameSet(t.value);
     else if (action === 'attr-set') attrSet(t.getAttribute('data-id'), t.value);
     else if (action === 'mastery-set') masterySet(t.value);
+    else if (action === 'spell-search') { state.spellQuery = String(t.value || ''); render(); }
   }
 
   function handleChange(e) {
