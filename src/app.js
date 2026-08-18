@@ -831,9 +831,12 @@
   const MAGIC_SPECS = ['manifestation', 'restoration', 'transmutation', 'illusion', 'warding', 'antimagic', 'curses'];
 
   function costLabel(ab) {
-    if (typeof ab.cost === 'string') return ab.cost;
     if (ab.cost && typeof ab.cost === 'object') {
-      return Object.keys(ab.cost).map(k => ab.cost[k] + ' ' + (k === 'mana' ? 'маны' : 'запаса сил')).join(', ');
+      return Object.keys(ab.cost).map(k => {
+        const v = ab.cost[k];
+        const unit = k === 'mana' ? 'маны' : 'запаса сил';
+        return typeof v === 'number' ? v + ' ' + unit : String(v);
+      }).join(', ');
     }
     return '—';
   }
