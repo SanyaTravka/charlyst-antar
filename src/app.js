@@ -921,11 +921,12 @@
       box.appendChild(el('<p class="small muted">Своих способностей пока нет.</p>'));
     }
     list.forEach((a, i) => {
+      const fullIdx = char.customAbilities.indexOf(a);
       box.appendChild(el(`
         <div class="card" style="margin:0.5rem 0;">
           <div class="row between">
             <strong>${esc(a.name)} <span class="muted small">Тир ${esc(a.tier)} · ${esc(a.type === 'passive' ? 'пассивная' : 'активная')} · ${esc(a.cost)}</span></strong>
-            <button class="btn btn-danger" data-action="custom-del" data-id="${i}">Убрать</button>
+            <button class="btn btn-danger" data-action="custom-del" data-id="${fullIdx}">Убрать</button>
           </div>
           ${a.desc ? `<p class="small muted" style="margin:0.35rem 0 0;">${esc(a.desc)}</p>` : ''}
         </div>
@@ -965,7 +966,7 @@
         <p class="small muted" style="margin:0 0 0.5rem;">За 1 ОС: +1 к запасу сил и +1 к мане, либо +5 хитпоинтов.</p>
         <div class="row">
           <button class="btn" data-action="os-plus" data-id="both"${dis(char.spentOS + 1 > CALC.totalOS(char, DATA))}>+1 ЗС и +1 мана</button>
-          <button class="btn" data-action="os-minus" data-id="both"${dis(char.spentOS <= 0 || (char.osBonuses.stamina <= 0 && char.osBonuses.mana <= 0))}>− возврат</button>
+          <button class="btn" data-action="os-minus" data-id="both"${dis(char.spentOS <= 0 || char.osBonuses.stamina <= 0 || char.osBonuses.mana <= 0)}>− возврат</button>
           <button class="btn" data-action="os-plus" data-id="hp"${dis(char.spentOS + 1 > CALC.totalOS(char, DATA))}>+5 HP</button>
           <button class="btn" data-action="os-minus" data-id="hp"${dis(char.spentOS <= 0 || char.osBonuses.hp <= 0)}>− возврат</button>
         </div>
@@ -978,6 +979,7 @@
     if (char.specializations.indexOf(id) !== -1) return;
     const s = DATA.specializations[id];
     if (!s) return;
+    if (char.raceId === 'gnome' && s.somatic) return;
     const cost = s.somatic ? 1 : 0.5;
     mutate(() => {
       if (char.spentOS + cost > CALC.totalOS(char, DATA)) return;
@@ -1025,7 +1027,7 @@
           if (char.osBonuses.hp <= 0) return;
           char.osBonuses.hp -= 5;
         } else {
-          if (char.osBonuses.stamina <= 0 && char.osBonuses.mana <= 0) return;
+          if (char.osBonuses.stamina <= 0 || char.osBonuses.mana <= 0) return;
           char.osBonuses.stamina -= 1;
           char.osBonuses.mana -= 1;
         }
