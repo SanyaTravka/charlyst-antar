@@ -2012,7 +2012,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '' };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '', refQuery: '' };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -2021,6 +2021,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   let condModalOpen = false;
   let exhModalOpen = false;
   let lastDice = null;
+  let notesTimer = null;
 
   function el(html) {
     const t = document.createElement('template');
@@ -2624,8 +2625,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     page.appendChild(tabBar());
     if (state.tab === 'specs') renderSpecs(page, char);
     else if (state.tab === 'spells') renderSpells(page, char);
-    else if (state.tab === 'refbook') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Справочник» пока не готова.</p></div>'));
-    else if (state.tab === 'notes') page.appendChild(el('<div class="card"><p class="muted">Вкладка «Заметки» пока не готова.</p></div>'));
+    else if (state.tab === 'refbook') renderRefbook(page);
+    else if (state.tab === 'notes') renderNotes(page, char);
     else renderOverview(page, char);
     app.appendChild(page);
     if (weaponModalOpen) app.appendChild(weaponModal());
@@ -2779,6 +2780,110 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
         </div>
       </div>
     `);
+  }
+
+  function renderRefbook(container) {
+    const q = String(state.refQuery || '').trim().toLowerCase();
+    const open = q.length > 0;
+    container.appendChild(el(`
+      <div>
+        <h3 style="margin:0 0 0.75rem;">Справочник</h3>
+        <input class="field" style="width:100%;margin-bottom:1rem;" data-action="ref-search" placeholder="Поиск по всем разделам" value="${esc(state.refQuery)}">
+      </div>
+    `));
+    const hit = (text) => !q || String(text || '').toLowerCase().indexOf(q) !== -1;
+    const itemHtml = (name, body) => hit(name) || hit(body)
+      ? `<div class="card" style="margin:0.35rem 0;"><strong>${esc(name)}</strong>${body ? `<p class="small muted" style="margin:0.35rem 0 0;">${esc(body).split('\n').join('<br>')}</p>` : ''}</div>`
+      : '';
+    const section = (title, html) => el(`
+      <details class="card" style="margin-bottom:0.75rem;"${open ? ' open' : ''}>
+        <summary style="cursor:pointer;font-weight:700;">${esc(title)}</summary>
+        <div style="margin-top:0.5rem;">${html}</div>
+      </details>
+    `);
+    let html;
+    html = '';
+    for (const id in DATA.conditions) {
+      const c = DATA.conditions[id];
+      html += itemHtml(c.name, c.desc);
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Состояния (' + Object.keys(DATA.conditions).length + ')', html));
+    html = '';
+    for (const id in DATA.injuries) {
+      const i = DATA.injuries[id];
+      html += itemHtml(i.name, i.desc);
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Травмы (' + Object.keys(DATA.injuries).length + ')', html));
+    html = '';
+    for (let n = 1; n <= 6; n++) {
+      const e = DATA.exhaustion[n];
+      if (e) html += itemHtml(n + ' — ' + e.name, e.desc);
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Истощение (' + Object.keys(DATA.exhaustion).length + ')', html));
+    html = '';
+    for (const id in DATA.traits) {
+      const t = DATA.traits[id];
+      html += itemHtml(t.num + ' — ' + t.name, t.quote + '\n' + t.desc);
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Черты (' + Object.keys(DATA.traits).length + ')', html));
+    html = '';
+    for (const id in DATA.races) {
+      const r = DATA.races[id];
+      const parts = ['Кость хитов: d' + r.hitDie, 'Размер: ' + r.size, 'Жизнь: ' + (r.lifespan || '—')];
+      if (r.bonuses) parts.push(Object.keys(r.bonuses).map(k => '+' + r.bonuses[k] + ' ' + k).join(', '));
+      if (r.bonusMode === 'choice') parts.push('Бонус на выбор: +1 ко всем или +3/+2 к двум');
+      if (r.attrCaps) parts.push('Потолки: ' + Object.keys(r.attrCaps).map(k => k + ' ≤ ' + r.attrCaps[k]).join(', '));
+      html += itemHtml(r.name, parts.join(' · '));
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Расы (' + Object.keys(DATA.races).length + ')', html));
+    html = '';
+    for (const id in DATA.statuses) {
+      const s = DATA.statuses[id];
+      const parts = [s.text];
+      for (const k in (s.bonuses || {})) parts.push('+' + s.bonuses[k] + ' ' + k);
+      if (s.staminaBonus) parts.push('+' + s.staminaBonus + ' к запасу сил');
+      if (s.manaBonus) parts.push('+' + s.manaBonus + ' к мане');
+      const trained = [].concat(
+        (s.skills || []).map(x => (DATA.skills[x] || {}).name),
+        (s.lores || []).map(x => (DATA.lores[x] || {}).name),
+        (s.crafts || []).map(x => (DATA.crafts[x] || {}).name)
+      ).filter(Boolean);
+      if (trained.length) parts.push('Владения: ' + trained.join(', '));
+      html += itemHtml(s.name, parts.join('\n'));
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Статусы (' + Object.keys(DATA.statuses).length + ')', html));
+    html = '';
+    for (const id in DATA.specializations) {
+      const s = DATA.specializations[id];
+      html += itemHtml(s.name + (s.somatic ? ' (телесная)' : ' (приобретённая)') + (s.empty ? ' — ждём редакций' : ''), s.desc || '');
+    }
+    if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
+    container.appendChild(section('Специализации (' + Object.keys(DATA.specializations).length + ')', html));
+  }
+
+  function renderNotes(container, char) {
+    container.appendChild(el(`
+      <div>
+        <h3 style="margin:0 0 0.75rem;">Заметки</h3>
+        <textarea class="field" rows="14" style="width:100%;resize:vertical;" data-action="notes-input" placeholder="Запишите всё, что важно для персонажа...">${esc(char.notes)}</textarea>
+      </div>
+    `));
+  }
+
+  function notesInput(v) {
+    const char = currentChar();
+    if (!char) return;
+    if (notesTimer) clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => {
+      notesTimer = null;
+      mutate(() => { char.notes = String(v || ''); });
+    }, 300);
   }
 
   function calcFull(char) {
@@ -3489,6 +3594,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'os-plus') osBonusChar(currentChar(), id, 1);
     else if (action === 'os-minus') osBonusChar(currentChar(), id, -1);
     else if (action === 'spell-buy') buyAbility(currentChar(), id);
+    else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
   }
 
   function handleInput(e) {
@@ -3500,6 +3606,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'attr-set') attrSet(t.getAttribute('data-id'), t.value);
     else if (action === 'mastery-set') masterySet(t.value);
     else if (action === 'spell-search') { state.spellQuery = String(t.value || ''); render(); }
+    else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
+    else if (action === 'notes-input') notesInput(t.value);
   }
 
   function handleChange(e) {
