@@ -1884,7 +1884,7 @@ const CALC = (function () {
     if (!r) return char.hp.max || 0;
     const conMod = mods(char, DATA)['живучесть'];
     let total = 4 * r.hitDie + Math.round(conMod * 3.5);
-    const conMult = (DATA.allAbilities && hasAbility(char, DATA, 'живучесть-закалка')) ? 3 : 1;
+    const conMult = (DATA.allAbilities && hasAbility(char, DATA, 'дило-закалка')) ? 3 : 1;
     for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * conMult;
     total += char.osBonuses.hp;
     return total;
@@ -3796,7 +3796,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const newLevel = char.level + 1;
     const race = CALC.race(char, DATA);
     const conMod = CALC.mods(char, DATA)['живучесть'];
-    const hardened = DATA.allAbilities && char.abilities.indexOf('живучесть-закалка') !== -1;
+    const hardened = DATA.allAbilities && char.abilities.indexOf('дило-закалка') !== -1;
     const conMult = hardened ? 3 : 1;
     const hpGain = race ? race.hitDie + conMod * conMult : 0;
     const t = CALC.trait(char, DATA);
@@ -3889,7 +3889,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   function applyLevelUp() {
     const char = currentChar();
     if (!char || char.level >= 20 || !levelUpState) return;
-    if (levelUpState.spent > levelUpGain()) return;
+    if (levelUpState.spent > levelUpGain()) { toast('Потрачено больше ОС, чем получено — уменьшите расход.'); return; }
     const st = levelUpState;
     const newLevel = char.level + 1;
     const oldHp = char.hp.max;

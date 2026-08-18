@@ -86,7 +86,7 @@ const CALC = (function () {
     if (!r) return char.hp.max || 0;
     const conMod = mods(char, DATA)['живучесть'];
     let total = 4 * r.hitDie + Math.round(conMod * 3.5);
-    const conMult = (DATA.allAbilities && hasAbility(char, DATA, 'живучесть-закалка')) ? 3 : 1;
+    const conMult = (DATA.allAbilities && hasAbility(char, DATA, 'дило-закалка')) ? 3 : 1;
     for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * conMult;
     total += char.osBonuses.hp;
     return total;

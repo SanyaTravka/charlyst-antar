@@ -79,6 +79,11 @@ test('maxHp formula at level 1', () => {
 test('maxHp: level-up contribution and Закалка', () => {
   const c = baseChar({ raceId: 'dwarf', level: 3, attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
   assert.equal(CALC.maxHp(c, DATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3) * 2);
+  const h = baseChar({ raceId: 'dwarf', level: 3, abilities: ['дило-закалка'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  const HDATA = { ...DATA, allAbilities: { 'дило-закалка': { specId: 'vitality' } } };
+  assert.equal(CALC.maxHp(h, HDATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3 * 3) * 2); // ×3 con mod
+  const plain = baseChar({ raceId: 'dwarf', level: 3, abilities: ['дило-закалка'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  assert.equal(CALC.maxHp(plain, DATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3) * 2); // no allAbilities data -> no mult
 });
 
 test('maxStamina/maxMana with status and osBonuses', () => {
@@ -106,6 +111,8 @@ test('totalOS with adaptive and dumb traits', () => {
   assert.equal(CALC.totalOS(c4, DATA), 36);
   const c5 = baseChar({ level: 16 });
   assert.equal(CALC.totalOS(c5, DATA), 36);
+  const c6 = baseChar({ level: 16, extraOS: 4 });
+  assert.equal(CALC.totalOS(c6, DATA), 40);
 });
 
 test('abilityCost: телесные 1, приобретённые 0.5', () => {
