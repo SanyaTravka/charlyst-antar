@@ -86,11 +86,6 @@ function click(action, id, extra) {
   return node;
 }
 
-function input(action, value) {
-  const t = { getAttribute: (n) => (n === 'data-action' ? action : null), value };
-  appEl.oninput({ target: t });
-}
-
 sandbox.Math.random = () => 0.5;
 
 const char = {
@@ -109,61 +104,46 @@ const char = {
   notes: '', createdAt: 0, updatedAt: 0, humanBonusChoice: null,
 };
 
-const MAGIC = ['manifestation', 'restoration', 'transmutation', 'illusion', 'warding', 'antimagic', 'curses'];
-const schoolNames = MAGIC.map(sid => APP.DATA.specializations[sid].name);
+const magicSpecs = ['manifestation', 'restoration', 'transmutation', 'illusion', 'warding', 'antimagic', 'curses'];
+const magicAbilities = Object.keys(APP.DATA.allAbilities).filter(id => magicSpecs.indexOf(APP.DATA.allAbilities[id].specId) !== -1);
 
 APP.state.chars.push(char);
 APP.state.currentId = char.id;
-APP.state.tab = 'spells';
+APP.state.tab = 'specs';
 APP.goto('sheet');
 
 let m = markup();
-ok(m.includes('Заклинания'), 'spells tab header');
+ok(m.includes('Специализации и способности'), 'specs tab header');
+ok(!m.includes('data-id="spells"'), 'spells tab removed from tab bar');
 ok(m.includes('ОС: 0 / 3'), 'OS counter');
-for (const n of schoolNames) ok(m.includes(n), 'school section: ' + n);
-ok(m.includes('Выучить'), 'learn buttons present');
-ok(m.includes('Компоненты:'), 'components shown');
+ok(m.includes('Компоненты:'), 'components shown inside spec blocks');
+ok(m.includes('Затрата:'), 'resource cost shown inside spec blocks');
+ok(magicAbilities.length > 0, 'magic abilities exist in data');
 
-const found = Object.keys(APP.DATA.allAbilities).filter(id => {
+const fire = magicAbilities.find(id => {
   const ab = APP.DATA.allAbilities[id];
-  return MAGIC.indexOf(ab.specId) !== -1;
+  return ab.specId === 'manifestation' && ab.name === 'Огненная стрела';
 });
-ok(found.length > 0, 'magic abilities exist in data');
-
-const fire = found.filter(id => String(APP.DATA.allAbilities[id].desc).toLowerCase().indexOf('огонь') !== -1 || APP.DATA.allAbilities[id].name.toLowerCase().indexOf('огонь') !== -1);
-input('spell-search', 'огонь');
-m = markup();
-if (fire.length) {
-  const nonFire = found.filter(id => fire.indexOf(id) === -1);
-  let allFireShown = true;
-  for (const id of fire) if (!m.includes(APP.DATA.allAbilities[id].name)) allFireShown = false;
-  ok(allFireShown, 'fire filter shows fire spells');
-  if (nonFire.some(id => !m.includes(APP.DATA.allAbilities[id].name))) ok(true, 'fire filter hides non-fire');
-  else { ok(false, 'fire filter hides non-fire'); console.log('NOTE: all spells contain огонь?'); }
-} else {
-  console.log('NOTE: no fire spells in data, weak search check');
+ok(!!fire, 'found Огненная стрела');
+if (fire) {
+  const ab = APP.DATA.allAbilities[fire];
+  m = markup();
+  ok(m.includes(ab.name), 'fire arrow shown in specs');
+  ok(m.includes('Время: 1 действие'), 'cast time shown');
+  ok(m.includes('Дистанция: 100 футов'), 'range shown');
+  ok(m.includes('Затрата: 2 маны'), 'resource cost shown');
+  ok(m.includes('Компоненты: верб., сом. (одна рука)'), 'components shown');
 }
-input('spell-search', 'zzzz');
-m = markup();
-ok(m.includes('Ничего не найдено'), 'no-result message');
-input('spell-search', '');
-m = markup();
-ok(m.includes('Выучить'), 'reset search restores');
 
-const t1 = found.find(id => {
-  const ab = APP.DATA.allAbilities[id];
-  return ab.tier === 1 && ab.specId === 'manifestation';
-});
-ok(!!t1, 'found t1 manifestation spell');
-click('spell-buy', t1);
-ok(char.abilities.indexOf(t1) !== -1, 'spell learned');
+click('ab-buy', fire);
+ok(char.abilities.indexOf(fire) !== -1, 'spell learned via ab-buy');
 ok(char.spentOS === 0.5, 'acquired spell cost 0.5');
 m = markup();
-ok(m.includes('Выучено'), 'learned badge');
+ok(m.includes('Отдать'), 'owned ability shows refund button');
 
-const t2 = found.find(id => {
+const t2 = magicAbilities.find(id => {
   const ab = APP.DATA.allAbilities[id];
-  return ab.tier === 2 && MAGIC.indexOf(ab.specId) !== -1;
+  return ab.tier === 2 && magicSpecs.indexOf(ab.specId) !== -1;
 });
 m = markup();
 if (t2) ok(m.includes('Требуется тир 2 (уровень 6–10)'), 'tier 2 gate at level 1');
@@ -172,7 +152,7 @@ APP.mutate(() => { char.level = 6; });
 m = markup();
 ok(m.includes('ОС: 0.5 / 15'), 'totalOS grows with level (3+2+2+2+3+3=15)');
 if (t2) {
-  click('spell-buy', t2);
+  click('ab-buy', t2);
   ok(char.abilities.indexOf(t2) !== -1 && char.spentOS === 1, 'tier 2 learned at level 6');
 }
 
@@ -180,4 +160,4 @@ if (consoleLog.length) { console.log('CONSOLE ERRORS: ' + consoleLog.join('; '))
 
 console.log(checks + ' checks, ' + fails + ' failures');
 if (fails) process.exit(1);
-console.log('SPELLS TAB HARNESS OK');
+console.log('MERGED SPELL INFO HARNESS OK');
