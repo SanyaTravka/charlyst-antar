@@ -15,6 +15,7 @@ const CALC = (function () {
       conditions: [], injuries: { head: false, arms: false, torso: false, legs: false },
       exhaustion: 0, deathSaves: { success: 0, fail: 0 }, inspiration: 0,
       spentOS: 0, osBonuses: { stamina: 0, mana: 0, hp: 0 },
+      hpLevels: {},
       masteryBonus: 0,
       notes: '', createdAt: 0, updatedAt: 0, humanBonusChoice: null,
     };
@@ -90,13 +91,18 @@ const CALC = (function () {
     return m;
   }
 
+  function avgDie(d) { return Math.floor(d / 2) + 1; }
+
   function maxHp(char, DATA) {
     const r = race(char, DATA);
     if (!r) return char.hp.max || 0;
     const conMod = mods(char, DATA)['живучесть'];
     let total = 4 * r.hitDie + Math.round(conMod * 3.5);
     const cm = conMult(char, DATA);
-    for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * cm;
+    for (let l = 2; l <= char.level; l++) {
+      const die = char.hpLevels && char.hpLevels[l] != null ? char.hpLevels[l] : r.hitDie;
+      total += die + conMod * cm;
+    }
     total += char.osBonuses.hp;
     return total;
   }
@@ -142,6 +148,6 @@ const CALC = (function () {
     return 0.5;
   }
 
-  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult };
+  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = { CALC };

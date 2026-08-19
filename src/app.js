@@ -1595,6 +1595,7 @@
     else if (action === 'levelup-bonus') levelUpBonus(id);
     else if (action === 'levelup-os') levelUpOs(id);
     else if (action === 'levelup-apply') applyLevelUp();
+    else if (action === 'levelup-hpmode') levelUpHpMode(id);
   }
 
   function handleInput(e) {
@@ -1763,7 +1764,7 @@
     const char = currentChar();
     if (!char || char.level >= 20) return;
     levelUpOpen = true;
-    levelUpState = { spent: 0, quickStamina: 0, quickHp: 0, bonus: 'both', manualOs: '' };
+    levelUpState = { spent: 0, quickStamina: 0, quickHp: 0, bonus: 'both', manualOs: '', hpMode: 'roll', roll: null };
     render();
   }
 
@@ -1788,7 +1789,9 @@
     const race = CALC.race(char, DATA);
     const conMod = CALC.mods(char, DATA)['живучесть'];
     const conMult = CALC.conMult(char, DATA);
-    const hpGain = race ? race.hitDie + conMod * conMult : 0;
+    const dieSize = race ? race.hitDie : 0;
+    const dieVal = levelUpState.hpMode === 'avg' ? CALC.avgDie(dieSize) : levelUpState.roll;
+    const hpGain = dieVal != null ? dieVal + conMod * conMult : null;
     const t = CALC.trait(char, DATA);
     const traitNotes = [];
     if (t && t.osEvery3Levels && newLevel % 3 === 0) traitNotes.push('«Приспосабливаемый»: +1 ОС за третий уровень');
@@ -1797,8 +1800,11 @@
     const gain = levelUpGain();
     const left = gain - levelUpState.spent;
     const manualAdd = over15 ? (parseInt(levelUpState.manualOs, 10) || 0) : 0;
+    const projLevels = Object.assign({}, char.hpLevels || {});
+    if (dieVal != null) projLevels[newLevel] = dieVal;
     const clone = Object.assign({}, char, {
       level: newLevel,
+      hpLevels: projLevels,
       extraOS: (char.extraOS || 0) + manualAdd,
       spentOS: (char.spentOS || 0) + levelUpState.spent,
       osBonuses: {
@@ -1812,6 +1818,9 @@
     const showStam = CALC.maxStamina(clone, DATA);
     const showMana = CALC.maxMana(clone, DATA);
     const radio = (id, label) => `<button class="btn" data-action="levelup-bonus" data-id="${id}"${levelUpState.bonus === id ? ' style="border:2px solid var(--accent)"' : ''}>${esc(label)}</button>`;
+    const hpLine = hpGain == null
+      ? `Хиты: кость не брошена — бросьте d${dieSize} или возьмите среднее`
+      : `Хиты: +${hpGain} (${levelUpState.hpMode === 'avg' ? 'среднее d' + dieSize : 'кость ' + dieVal} + мод ${conMod}${conMult > 1 ? ' ×' + conMult + ' (Закалка)' : ''}) → макс. ${showHp}`;
     return el(`
       <div class="wizard-overlay" data-action="levelup-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;">
         <div class="card wizard-modal" data-action="levelup-stop" style="max-width:560px;width:100%;max-height:80vh;overflow:auto;">
@@ -1821,7 +1830,12 @@
           </div>
           <p class="small muted">Уровень ${char.level} → ${newLevel}</p>
           <div class="card" style="margin:0.35rem 0;">
-            <strong>Хиты:</strong> +${hpGain} <span class="small muted">(кость d${race ? race.hitDie : 0} + мод ${conMod}${conMult > 1 ? ' ×' + conMult + ' (Закалка)' : ''})</span> → макс. ${showHp}
+            <strong>Хиты:</strong>
+            <div class="row" style="flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem;">
+              <button class="btn" data-action="levelup-hpmode" data-id="roll"${levelUpState.hpMode === 'roll' ? ' style="border:2px solid var(--accent)"' : ''}>Кинуть d${dieSize}</button>
+              <button class="btn" data-action="levelup-hpmode" data-id="avg"${levelUpState.hpMode === 'avg' ? ' style="border:2px solid var(--accent)"' : ''}>Среднее: +${CALC.avgDie(dieSize)}</button>
+            </div>
+            <p class="small muted" style="margin:0.35rem 0 0;">${hpLine}</p>
           </div>
           <div class="card" style="margin:0.35rem 0;">
             <strong>ОС к получению:</strong> +${gain} <span class="small muted">(${CALC.totalOS(char, DATA)} → ${prevTotal})</span>
@@ -1845,7 +1859,7 @@
               <button class="btn" data-action="levelup-os" data-id="both"${dis(left <= 0)}>+1 ЗС и +1 мана за 1 ОС</button>
               <button class="btn" data-action="levelup-os" data-id="hp"${dis(left <= 0)}>+5 HP за 1 ОС</button>
             </div>
-            <p class="small muted" style="margin:0.35rem 0 0;">Потрачено в модалке: ${levelUpState.spent} · Предпросмотр: ЗС ${char.stamina.max} → ${showStam} · Мана ${char.mana.max} → ${showMana} · HP ${char.hp.max} → ${showHp}</p>
+            <p class="small muted" style="margin:0.35rem 0 0;">Потрачено в модалке: ${levelUpState.spent} · Предпросмотр: ЗС ${char.stamina.max} → ${showStam} · Мана ${char.mana.max} → ${showMana}${hpGain != null ? ` · HP ${char.hp.max} → ${showHp}` : ''}</p>
           </div>
           <div class="row" style="justify-content:flex-end;margin-top:0.75rem;">
             <button class="btn btn-primary" data-action="levelup-apply">Применить</button>
@@ -1876,12 +1890,27 @@
     render();
   }
 
+  function levelUpHpMode(mode) {
+    if (!levelUpState) return;
+    if (mode === 'avg') {
+      levelUpState.hpMode = 'avg';
+    } else {
+      levelUpState.hpMode = 'roll';
+      const race = CALC.race(currentChar(), DATA);
+      levelUpState.roll = race ? Math.floor(Math.random() * race.hitDie) + 1 : null;
+    }
+    render();
+  }
+
   function applyLevelUp() {
     const char = currentChar();
     if (!char || char.level >= 20 || !levelUpState) return;
+    if (levelUpState.hpMode === 'roll' && levelUpState.roll == null) { toast('Бросьте кость или возьмите среднее'); return; }
     if (levelUpState.spent > levelUpGain()) { toast('Потрачено больше ОС, чем получено — уменьшите расход.'); return; }
     const st = levelUpState;
     const newLevel = char.level + 1;
+    const race = CALC.race(char, DATA);
+    const dieVal = st.hpMode === 'avg' ? CALC.avgDie(race.hitDie) : st.roll;
     const oldHp = char.hp.max;
     const oldStam = char.stamina.max;
     const oldMana = char.mana.max;
@@ -1898,6 +1927,8 @@
       char.osBonuses.mana += st.quickStamina;
       char.osBonuses.hp += st.quickHp * 5;
       if (manual > 0) char.extraOS = (char.extraOS || 0) + manual;
+      if (!char.hpLevels) char.hpLevels = {};
+      char.hpLevels[newLevel] = dieVal;
       char.hp.max = CALC.maxHp(char, DATA);
       char.stamina.max = CALC.maxStamina(char, DATA);
       char.mana.max = CALC.maxMana(char, DATA);

@@ -135,11 +135,24 @@ ok(m.includes('6 / 6'), 'lvl1 mana 6');
 click('levelup');
 m = markup();
 ok(m.includes('Уровень 1 → 2'), 'modal shows 1 → 2');
-ok(m.includes('+11'), 'hp gain 11 (d10 + conMod 1)');
+ok(m.includes('Кинуть d10') && m.includes('Среднее: +6'), 'hp mode buttons');
+ok(!m.includes('+11'), 'no automatic max die');
+ok(m.includes('кость не брошена'), 'roll pending hint');
 ok(m.includes('ОС к получению:</strong> +2'), 'gain 2 OS');
 ok(m.includes('(3 → 5)'), 'pool 3 → 5');
-ok(m.includes('HP 44 → 55'), 'hp preview 55');
 ok(m.includes('ЗС 9 → 10') && m.includes('Мана 6 → 7'), 'default both bonus preview');
+ok(!m.includes('HP 44 →'), 'no hp preview until rolled');
+
+click('levelup-apply');
+m = markup();
+ok(m.includes('Бросьте кость или возьмите среднее'), 'guard toast without roll');
+ok(m.includes('Повышение уровня</h3>'), 'modal stays open on guard');
+
+sandbox.Math.random = () => 0.2;
+click('levelup-hpmode', 'roll');
+m = markup();
+ok(m.includes('+4 (кость 3 + мод 1)'), 'roll 3 + con 1 = 4');
+ok(m.includes('HP 44 → 48'), 'hp preview after roll');
 
 click('levelup-os', 'both');
 m = markup();
@@ -149,7 +162,7 @@ ok(m.includes('ЗС 9 → 11') && m.includes('Мана 6 → 8'), 'quick both pr
 click('levelup-os', 'hp');
 m = markup();
 ok(m.includes('Потрачено в модалке: 2'), 'spent 2');
-ok(m.includes('HP 44 → 60'), 'hp preview after +5');
+ok(m.includes('HP 44 → 53'), 'hp preview +5 quick');
 ok(m.includes('disabled'), 'quick buttons disabled when spent all');
 
 click('levelup-bonus', 'stamina2');
@@ -157,11 +170,17 @@ m = markup();
 ok(m.includes('ЗС 9 → 12'), 'bonus stamina2 reroutes preview (9 + 1 quick + 2)');
 ok(m.includes('Мана 6 → 7'), 'mana keeps quick +1 only');
 
+click('levelup-hpmode', 'avg');
+m = markup();
+ok(m.includes('+7 (среднее d10 + мод 1)'), 'avg d10 = 6, gain 7');
+ok(m.includes('HP 44 → 56'), 'hp preview with avg + quick hp');
+
 click('levelup-apply');
 m = markup();
 ok(!m.includes('Повышение уровня</h3>'), 'modal closed after apply');
 ok(char.level === 2, 'level 2');
-ok(char.hp.max === 60 && char.hp.current === 60, 'hp max/current 60 (44+16)');
+ok(char.hp.max === 56 && char.hp.current === 56, 'hp max/current 56 (44 + 6 + 1 + 5)');
+ok(char.hpLevels[2] === 6, 'hpLevels 2 = avg d10');
 ok(char.stamina.max === 12 && char.stamina.current === 12, 'stamina 12 (9+1quick+2bonus)');
 ok(char.mana.max === 7 && char.mana.current === 7, 'mana 7 (6+1)');
 ok(char.spentOS === 2, 'spentOS 2');
@@ -214,6 +233,7 @@ ok(m.includes('ОС к получению:</strong> +0'), 'gain 0 before manual 
 input('levelup-manual', '3');
 m = markup();
 ok(m.includes('ОС к получению:</strong> +3'), 'manual adds 3');
+click('levelup-hpmode', 'avg');
 click('levelup-apply');
 ok(hi.level === 16, 'hi level 16');
 ok(hi.extraOS === 3, 'extraOS stored 3');

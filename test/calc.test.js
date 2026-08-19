@@ -98,6 +98,25 @@ test('conMult: mech-driven hp multiplier by any ability id', () => {
   assert.equal(CALC.maxHp(multi, MDATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3 * 6) * 2);
 });
 
+test('avgDie: floor(d/2)+1 for each die', () => {
+  assert.equal(CALC.avgDie(6), 4);
+  assert.equal(CALC.avgDie(8), 5);
+  assert.equal(CALC.avgDie(10), 6);
+  assert.equal(CALC.avgDie(12), 7);
+});
+
+test('maxHp: per-level hpLevels override the die', () => {
+  const base = 4 * 12 + Math.round(3 * 3.5); // dwarf, con 16 → mod 3
+  const avg = baseChar({ raceId: 'dwarf', level: 2, hpLevels: { 2: 5 }, attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  assert.equal(CALC.maxHp(avg, DATA), base + 5 + 3); // среднее d12 + conMod
+  const mixed = baseChar({ raceId: 'dwarf', level: 3, hpLevels: { 2: 7, 3: 5 }, attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  assert.equal(CALC.maxHp(mixed, DATA), base + (7 + 3) + (5 + 3)); // бросок 7, среднее 5
+  const none = baseChar({ raceId: 'dwarf', level: 2, attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  assert.equal(CALC.maxHp(none, DATA), base + 12 + 3); // нет записей → hitDie (старое поведение)
+  const lvl1 = baseChar({ raceId: 'dwarf', level: 1, hpLevels: { 1: 5 }, attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  assert.equal(CALC.maxHp(lvl1, DATA), base); // запись уровня 1 игнорируется
+});
+
 test('maxStamina/maxMana with status and osBonuses', () => {
   const c = baseChar({ statusId: 'slave', attrs: { ...CALC.defaults().attrs, живучесть: 14 }, osBonuses: { stamina: 2, mana: 3, hp: 0 } });
   assert.equal(CALC.maxStamina(c, DATA), 2 + 4 * 2 + 10 + 2);
@@ -149,4 +168,5 @@ test('defaults: complete character model', () => {
   assert.equal(d.spentOS, 0);
   assert.ok(Array.isArray(d.weapons));
   assert.deepEqual(d.injuries, { head: false, arms: false, torso: false, legs: false });
+  assert.deepEqual(d.hpLevels, {});
 });
