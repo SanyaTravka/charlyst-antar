@@ -80,10 +80,22 @@ test('maxHp: level-up contribution and Закалка', () => {
   const c = baseChar({ raceId: 'dwarf', level: 3, attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
   assert.equal(CALC.maxHp(c, DATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3) * 2);
   const h = baseChar({ raceId: 'dwarf', level: 3, abilities: ['дило-закалка'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
-  const HDATA = { ...DATA, allAbilities: { 'дило-закалка': { specId: 'vitality' } } };
+  const HDATA = { ...DATA, allAbilities: { 'дило-закалка': { specId: 'vitality', mech: { conMult: 3 } } } };
   assert.equal(CALC.maxHp(h, HDATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3 * 3) * 2); // ×3 con mod
   const plain = baseChar({ raceId: 'dwarf', level: 3, abilities: ['дило-закалка'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
   assert.equal(CALC.maxHp(plain, DATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3) * 2); // no allAbilities data -> no mult
+});
+
+test('conMult: mech-driven hp multiplier by any ability id', () => {
+  const c = baseChar({ raceId: 'dwarf', level: 3, abilities: ['v-закалка'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  const HDATA = { ...DATA, allAbilities: { 'v-закалка': { specId: 'vitality', mech: { conMult: 3 } } } };
+  assert.equal(CALC.conMult(c, HDATA), 3);
+  assert.equal(CALC.conMult(c, DATA), 1);
+  assert.equal(CALC.maxHp(c, HDATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3 * 3) * 2);
+  const multi = baseChar({ raceId: 'dwarf', level: 3, abilities: ['v-закалка', 'd-закалка'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  const MDATA = { ...DATA, allAbilities: { 'v-закалка': { specId: 'vitality', mech: { conMult: 3 } }, 'd-закалка': { specId: 'vitality', mech: { conMult: 2 } } } };
+  assert.equal(CALC.conMult(multi, MDATA), 6);
+  assert.equal(CALC.maxHp(multi, MDATA), 4 * 12 + Math.round(3 * 3.5) + (12 + 3 * 6) * 2);
 });
 
 test('maxStamina/maxMana with status and osBonuses', () => {

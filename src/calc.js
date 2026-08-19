@@ -81,13 +81,22 @@ const CALC = (function () {
 
   function hasAbility(char, DATA, id) { return char.abilities.indexOf(id) !== -1; }
 
+  function conMult(char, DATA) {
+    let m = 1;
+    if (DATA.allAbilities) for (const id of char.abilities) {
+      const ab = DATA.allAbilities[id];
+      if (ab && ab.mech && ab.mech.conMult) m *= ab.mech.conMult;
+    }
+    return m;
+  }
+
   function maxHp(char, DATA) {
     const r = race(char, DATA);
     if (!r) return char.hp.max || 0;
     const conMod = mods(char, DATA)['живучесть'];
     let total = 4 * r.hitDie + Math.round(conMod * 3.5);
-    const conMult = (DATA.allAbilities && hasAbility(char, DATA, 'дило-закалка')) ? 3 : 1;
-    for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * conMult;
+    const cm = conMult(char, DATA);
+    for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * cm;
     total += char.osBonuses.hp;
     return total;
   }
@@ -133,6 +142,6 @@ const CALC = (function () {
     return 0.5;
   }
 
-  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost };
+  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = { CALC };

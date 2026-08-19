@@ -1787,8 +1787,7 @@
     const newLevel = char.level + 1;
     const race = CALC.race(char, DATA);
     const conMod = CALC.mods(char, DATA)['живучесть'];
-    const hardened = DATA.allAbilities && char.abilities.indexOf('дило-закалка') !== -1;
-    const conMult = hardened ? 3 : 1;
+    const conMult = CALC.conMult(char, DATA);
     const hpGain = race ? race.hitDie + conMod * conMult : 0;
     const t = CALC.trait(char, DATA);
     const traitNotes = [];
@@ -1822,7 +1821,7 @@
           </div>
           <p class="small muted">Уровень ${char.level} → ${newLevel}</p>
           <div class="card" style="margin:0.35rem 0;">
-            <strong>Хиты:</strong> +${hpGain} <span class="small muted">(кость d${race ? race.hitDie : 0} + мод ${conMod}${conMult > 1 ? ' ×3 (Закалка)' : ''})</span> → макс. ${showHp}
+            <strong>Хиты:</strong> +${hpGain} <span class="small muted">(кость d${race ? race.hitDie : 0} + мод ${conMod}${conMult > 1 ? ' ×' + conMult + ' (Закалка)' : ''})</span> → макс. ${showHp}
           </div>
           <div class="card" style="margin:0.35rem 0;">
             <strong>ОС к получению:</strong> +${gain} <span class="small muted">(${CALC.totalOS(char, DATA)} → ${prevTotal})</span>
@@ -1909,6 +1908,25 @@
     toast('Уровень повышен до ' + newLevel);
   }
 
+  function racePicksReset(d) {
+    const had = d.specializations.length > 0 || d.abilities.length > 0 || d.customAbilities.length > 0 || d.spentOS > 0;
+    if (!had) return false;
+    d.specializations = [];
+    d.abilities = [];
+    d.customAbilities = [];
+    d.spentOS = 0;
+    d.osBonuses = { stamina: 0, mana: 0, hp: 0 };
+    d.extraOS = 0;
+    return true;
+  }
+
+  function raceChange(id) {
+    const d = state.wizard.draft;
+    const reset = d.raceId && d.raceId !== id ? racePicksReset(d) : false;
+    d.raceId = id;
+    return reset;
+  }
+
   function chooseRace(id) {
     const r = DATA.races[id];
     if (r && r.bonusMode === 'choice') {
@@ -1917,19 +1935,23 @@
       render();
       return;
     }
+    let reset = false;
     mutate(() => {
-      state.wizard.draft.raceId = id;
+      reset = raceChange(id);
       state.wizard.draft.humanBonusChoice = null;
     });
+    if (reset) toast('Смена расы сброшена: покупки специализаций и ОС очищены.');
   }
 
   function humanAll() {
     humanModalOpen = false;
     humanPickA = null;
+    let reset = false;
     mutate(() => {
-      state.wizard.draft.raceId = 'human';
+      reset = raceChange('human');
       state.wizard.draft.humanBonusChoice = { all: true };
     });
+    if (reset) toast('Смена расы сброшена: покупки специализаций и ОС очищены.');
   }
 
   function humanAttr(attr) {
@@ -1942,10 +1964,12 @@
     const a = humanPickA;
     humanModalOpen = false;
     humanPickA = null;
+    let reset = false;
     mutate(() => {
-      state.wizard.draft.raceId = 'human';
+      reset = raceChange('human');
       state.wizard.draft.humanBonusChoice = { a, b: attr };
     });
+    if (reset) toast('Смена расы сброшена: покупки специализаций и ОС очищены.');
   }
 
   function humanClose() {

@@ -1879,13 +1879,22 @@ const CALC = (function () {
 
   function hasAbility(char, DATA, id) { return char.abilities.indexOf(id) !== -1; }
 
+  function conMult(char, DATA) {
+    let m = 1;
+    if (DATA.allAbilities) for (const id of char.abilities) {
+      const ab = DATA.allAbilities[id];
+      if (ab && ab.mech && ab.mech.conMult) m *= ab.mech.conMult;
+    }
+    return m;
+  }
+
   function maxHp(char, DATA) {
     const r = race(char, DATA);
     if (!r) return char.hp.max || 0;
     const conMod = mods(char, DATA)['живучесть'];
     let total = 4 * r.hitDie + Math.round(conMod * 3.5);
-    const conMult = (DATA.allAbilities && hasAbility(char, DATA, 'дило-закалка')) ? 3 : 1;
-    for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * conMult;
+    const cm = conMult(char, DATA);
+    for (let l = 2; l <= char.level; l++) total += r.hitDie + conMod * cm;
     total += char.osBonuses.hp;
     return total;
   }
@@ -1931,7 +1940,7 @@ const CALC = (function () {
     return 0.5;
   }
 
-  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost };
+  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = { CALC };
 
@@ -3796,8 +3805,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const newLevel = char.level + 1;
     const race = CALC.race(char, DATA);
     const conMod = CALC.mods(char, DATA)['живучесть'];
-    const hardened = DATA.allAbilities && char.abilities.indexOf('дило-закалка') !== -1;
-    const conMult = hardened ? 3 : 1;
+    const conMult = CALC.conMult(char, DATA);
     const hpGain = race ? race.hitDie + conMod * conMult : 0;
     const t = CALC.trait(char, DATA);
     const traitNotes = [];
@@ -3831,7 +3839,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
           </div>
           <p class="small muted">Уровень ${char.level} → ${newLevel}</p>
           <div class="card" style="margin:0.35rem 0;">
-            <strong>Хиты:</strong> +${hpGain} <span class="small muted">(кость d${race ? race.hitDie : 0} + мод ${conMod}${conMult > 1 ? ' ×3 (Закалка)' : ''})</span> → макс. ${showHp}
+            <strong>Хиты:</strong> +${hpGain} <span class="small muted">(кость d${race ? race.hitDie : 0} + мод ${conMod}${conMult > 1 ? ' ×' + conMult + ' (Закалка)' : ''})</span> → макс. ${showHp}
           </div>
           <div class="card" style="margin:0.35rem 0;">
             <strong>ОС к получению:</strong> +${gain} <span class="small muted">(${CALC.totalOS(char, DATA)} → ${prevTotal})</span>
@@ -3918,6 +3926,25 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     toast('Уровень повышен до ' + newLevel);
   }
 
+  function racePicksReset(d) {
+    const had = d.specializations.length > 0 || d.abilities.length > 0 || d.customAbilities.length > 0 || d.spentOS > 0;
+    if (!had) return false;
+    d.specializations = [];
+    d.abilities = [];
+    d.customAbilities = [];
+    d.spentOS = 0;
+    d.osBonuses = { stamina: 0, mana: 0, hp: 0 };
+    d.extraOS = 0;
+    return true;
+  }
+
+  function raceChange(id) {
+    const d = state.wizard.draft;
+    const reset = d.raceId && d.raceId !== id ? racePicksReset(d) : false;
+    d.raceId = id;
+    return reset;
+  }
+
   function chooseRace(id) {
     const r = DATA.races[id];
     if (r && r.bonusMode === 'choice') {
@@ -3926,19 +3953,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
       render();
       return;
     }
+    let reset = false;
     mutate(() => {
-      state.wizard.draft.raceId = id;
+      reset = raceChange(id);
       state.wizard.draft.humanBonusChoice = null;
     });
+    if (reset) toast('Смена расы сброшена: покупки специализаций и ОС очищены.');
   }
 
   function humanAll() {
     humanModalOpen = false;
     humanPickA = null;
+    let reset = false;
     mutate(() => {
-      state.wizard.draft.raceId = 'human';
+      reset = raceChange('human');
       state.wizard.draft.humanBonusChoice = { all: true };
     });
+    if (reset) toast('Смена расы сброшена: покупки специализаций и ОС очищены.');
   }
 
   function humanAttr(attr) {
@@ -3951,10 +3982,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const a = humanPickA;
     humanModalOpen = false;
     humanPickA = null;
+    let reset = false;
     mutate(() => {
-      state.wizard.draft.raceId = 'human';
+      reset = raceChange('human');
       state.wizard.draft.humanBonusChoice = { a, b: attr };
     });
+    if (reset) toast('Смена расы сброшена: покупки специализаций и ОС очищены.');
   }
 
   function humanClose() {
