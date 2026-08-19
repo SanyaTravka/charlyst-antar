@@ -154,7 +154,14 @@ m = markup();
 ok(m.includes('Не хватает ОС'), 'not enough OS label');
 
 APP.mutate(() => { char.spentOS = 0; });
+click('spec-toggle', 'strength');
+ok(APP.state.collapsedSpecs['strength'] === true, 'spec section collapsed by toggle');
+click('desc-toggle', t1id);
+ok(APP.state.openDescs[t1id] === true, 'ability desc opened by toggle');
 click('spec-learn', 'dexterity');
+ok(APP.state.collapsedSpecs['strength'] === true, 'collapse state survives re-render');
+ok(APP.state.openDescs[t1id] === true, 'open desc survives re-render');
+ok(char.specializations.indexOf('dexterity') !== -1 && char.spentOS === 1, 'learned dexterity for 1 OS');
 ok(char.specializations.indexOf('dexterity') !== -1 && char.spentOS === 1, 'learned dexterity for 1 OS');
 const n = APP.state.chars.length;
 APP.newChar();

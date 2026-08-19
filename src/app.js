@@ -4,7 +4,7 @@
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '', refQuery: '', editingPool: null };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {} };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -1049,7 +1049,7 @@
     for (const sid of char.specializations) {
       const spec = DATA.specializations[sid];
       if (!spec) continue;
-      const card = el(`<details class="card" open style="margin-bottom:1rem;"><summary style="cursor:pointer;font-weight:700;">${esc(spec.name)} <span class="muted small">${spec.somatic ? 'телесная' : 'приобретённая'}${spec.empty ? ' · ждём редакций' : ''}</span></summary></details>`);
+      const card = el(`<details class="card" style="margin-bottom:1rem;" ${state.collapsedSpecs[sid] ? '' : 'open'}><summary data-action="spec-toggle" data-id="${esc(sid)}" style="cursor:pointer;font-weight:700;">${esc(spec.name)} <span class="muted small">${spec.somatic ? 'телесная' : 'приобретённая'}${spec.empty ? ' · ждём редакций' : ''}</span></summary></details>`);
       if (spec.empty) {
         card.appendChild(customAbilitiesBlock(char, sid));
       } else {
@@ -1108,8 +1108,8 @@
           <strong>${esc(ab.name)} <span class="muted small">Тир ${ab.tier} · ${ab.type === 'passive' ? 'пассивная' : 'активная'} · ${esc(abilityCostLabel(id))}</span></strong>
           ${btn}
         </div>
-        <details style="margin-top:0.4rem;">
-          <summary class="small muted" style="cursor:pointer;">Описание</summary>
+        <details style="margin-top:0.4rem;" ${state.openDescs[id] ? 'open' : ''}>
+          <summary class="small muted" data-action="desc-toggle" data-id="${esc(id)}" style="cursor:pointer;">Описание</summary>
           <p class="small" style="margin:0.35rem 0 0;">${esc(ab.desc)}</p>
         </details>
       </div>
@@ -1574,6 +1574,16 @@
     else if (action === 'attr-plus') attrInc(id);
     else if (action === 'attr-minus') attrDec(id);
     else if (action === 'spec') pickSpec(id);
+    else if (action === 'spec-toggle') {
+      if (e && e.preventDefault) e.preventDefault();
+      state.collapsedSpecs[id] = !state.collapsedSpecs[id];
+      render();
+    }
+    else if (action === 'desc-toggle') {
+      if (e && e.preventDefault) e.preventDefault();
+      state.openDescs[id] = !state.openDescs[id];
+      render();
+    }
     else if (action === 'ability-buy') buyAbility(state.wizard.draft, id);
     else if (action === 'ability-sell') sellAbility(state.wizard.draft, id);
     else if (action === 'os-bonus') osBonus(id);
@@ -2171,7 +2181,7 @@
     if (focus) {
       const sel = app.querySelector('[data-action="' + focus.action + '"]' + (focus.id ? '[data-id="' + focus.id + '"]' : ''));
       if (sel) {
-        sel.focus();
+        sel.focus({ preventScroll: true });
         if (sel.setSelectionRange && typeof focus.selStart === 'number') sel.setSelectionRange(focus.selStart, focus.selEnd);
       }
     }
