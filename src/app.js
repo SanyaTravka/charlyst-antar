@@ -1065,25 +1065,6 @@
       }
       container.appendChild(card);
     }
-    const known = char.specializations;
-    const available = Object.keys(DATA.specializations).filter(id => known.indexOf(id) === -1);
-    if (available.length) {
-      const learn = el('<div class="card" style="margin-bottom:1rem;"></div>');
-      learn.appendChild(el('<h3 style="margin-top:0;">Изучить специализацию</h3>'));
-      learn.appendChild(el(`<p class="small muted">Телесная — 1 ОС, приобретённая — 1 ОС за 2. ${esc(tierRange(1))}.</p>`));
-      const row = el('<div class="row"></div>');
-      for (const id of available) {
-        const s = DATA.specializations[id];
-        const cost = s.somatic ? 1 : 0.5;
-        row.appendChild(el(`
-          <button class="btn" data-action="spec-learn" data-id="${esc(id)}"${dis(char.spentOS + cost > total)}>
-            + ${esc(s.name)} (${cost} ОС)
-          </button>
-        `));
-      }
-      learn.appendChild(row);
-      container.appendChild(learn);
-    }
     container.appendChild(osBonusesBlock(char));
   }
 
@@ -1175,19 +1156,6 @@
         <p class="small muted" style="margin-top:0.5rem;">Бонусы: ЗС +${char.osBonuses.stamina} · Мана +${char.osBonuses.mana} · HP +${char.osBonuses.hp}</p>
       </div>
     `);
-  }
-
-  function learnSpec(char, id) {
-    if (char.specializations.indexOf(id) !== -1) return;
-    const s = DATA.specializations[id];
-    if (!s) return;
-    if (char.raceId === 'gnome' && s.somatic) return;
-    const cost = s.somatic ? 1 : 0.5;
-    mutate(() => {
-      if (char.spentOS + cost > CALC.totalOS(char, DATA)) return;
-      char.specializations.push(id);
-      char.spentOS += cost;
-    });
   }
 
   function addCustomAbility(char, specId, btn) {
@@ -1624,7 +1592,6 @@
     else if (action === 'cond-del') condDel(id);
     else if (action === 'new-turn') newTurn();
     else if (action === 'new-day') newDay();
-    else if (action === 'spec-learn') learnSpec(currentChar(), id);
     else if (action === 'ab-buy') buyAbility(currentChar(), id);
     else if (action === 'ab-sell') sellAbility(currentChar(), id);
     else if (action === 'custom-add') addCustomAbility(currentChar(), id, t);

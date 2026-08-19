@@ -109,7 +109,7 @@ let m = markup();
 ok(m.includes('Специализации и способности'), 'specs tab header');
 ok(m.includes('ОС: 0 / 3'), 'OS counter 0/3 (level1 human)');
 ok(m.includes('Сила') && m.includes('Воинское искусство') && m.includes('Призыв') && m.includes('Ограждение'), '4 spec sections');
-ok(m.includes('Изучить специализацию'), 'learn block present');
+ok(!m.includes('Изучить специализацию'), 'learn-spec block removed');
 
 const t1id = Object.keys(APP.DATA.allAbilities).find(id => {
   const ab = APP.DATA.allAbilities[id];
@@ -158,11 +158,9 @@ click('spec-toggle', 'strength');
 ok(APP.state.collapsedSpecs['strength'] === true, 'spec section collapsed by toggle');
 click('desc-toggle', t1id);
 ok(APP.state.openDescs[t1id] === true, 'ability desc opened by toggle');
-click('spec-learn', 'dexterity');
+click('spec-toggle', 'martial');
 ok(APP.state.collapsedSpecs['strength'] === true, 'collapse state survives re-render');
 ok(APP.state.openDescs[t1id] === true, 'open desc survives re-render');
-ok(char.specializations.indexOf('dexterity') !== -1 && char.spentOS === 1, 'learned dexterity for 1 OS');
-ok(char.specializations.indexOf('dexterity') !== -1 && char.spentOS === 1, 'learned dexterity for 1 OS');
 const n = APP.state.chars.length;
 APP.newChar();
 APP.state.wizard.draft.raceId = 'human';
