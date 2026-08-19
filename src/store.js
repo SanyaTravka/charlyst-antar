@@ -42,7 +42,16 @@ const STORE = (function () {
     out.abilities = Array.isArray(raw.abilities) ? raw.abilities : [];
     out.customAbilities = Array.isArray(raw.customAbilities) ? raw.customAbilities : [];
     out.specializations = Array.isArray(raw.specializations) ? raw.specializations : [];
-    out.inventory = Array.isArray(raw.inventory) ? raw.inventory : [];
+    out.inventory = Array.isArray(raw.inventory)
+      ? raw.inventory.map(i => typeof i === 'string'
+        ? { name: String(i), desc: '', qty: 1, weight: 0 }
+        : {
+            name: String((i && i.name) || ''),
+            desc: String((i && i.desc) || ''),
+            qty: parseInt(i && i.qty, 10) || 1,
+            weight: parseFloat(i && i.weight) || 0,
+          })
+      : [];
     out.conditions = Array.isArray(raw.conditions) ? raw.conditions : [];
     out.version = VERSION;
     return out;

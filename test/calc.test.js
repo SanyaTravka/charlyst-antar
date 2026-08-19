@@ -15,8 +15,13 @@ const FIXTURE = {
   traits: {
     bigTalent: { num: 3, name: 'Большой талант', allAttrBonus: 1 },
     adaptive: { num: 1, name: 'Приспосабливаемый', osEvery3Levels: true },
+    adaptive2: { num: 2, name: 'Закалённый', osEvery3Levels: true },
     dumb: { num: 12, name: 'Тупой', osPerLevel: -1, intNot9: true },
+    dumb2: { num: 13, name: 'Тупой II', osPerLevel: -1 },
     fragile: { num: 18, name: 'Хрупкий', vitCap: 9 },
+    fragile2: { num: 19, name: 'Хрупкий II', vitCap: 12 },
+    dreamer: { num: 20, name: 'Сквозняк', doubleWillMod: true },
+    bigTalent2: { num: 21, name: 'Большой талант II', allAttrBonus: 1 },
   },
   osByLevel: { 1: 3, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 3, 11: 3, 12: 2, 13: 2, 14: 2, 15: 3 },
   abilities: {
@@ -144,6 +149,53 @@ test('totalOS with adaptive and dumb traits', () => {
   assert.equal(CALC.totalOS(c5, DATA), 36);
   const c6 = baseChar({ level: 16, extraOS: 4 });
   assert.equal(CALC.totalOS(c6, DATA), 40);
+});
+
+test('traits: list from array, migrates legacy traitId, filters unknown', () => {
+  const c = baseChar({ traits: ['adaptive', 'nope'] });
+  const ts = CALC.traits(c, DATA);
+  assert.equal(ts.length, 1);
+  assert.equal(ts[0].name, 'Приспосабливаемый');
+  const legacy = baseChar({ traitId: 'adaptive' });
+  assert.equal(CALC.traits(legacy, DATA)[0].name, 'Приспосабливаемый');
+  assert.deepEqual(CALC.traits(baseChar({}), DATA), []);
+});
+
+test('traits: osEvery3Levels adds per trait, osPerLevel sums', () => {
+  const double = baseChar({ level: 6, traits: ['adaptive', 'adaptive2'] });
+  assert.equal(CALC.totalOS(double, DATA), 15 + 2 * 2); // Σ1..6 + 2 за каждую черту
+  const dumbSum = baseChar({ level: 3, traits: ['dumb', 'dumb2'] });
+  assert.equal(CALC.totalOS(dumbSum, DATA), 7 - 6); // (3+2+2) − 3×2
+  const mixed = baseChar({ level: 6, traits: ['adaptive', 'dumb'] });
+  assert.equal(CALC.totalOS(mixed, DATA), 15 + 2 - 6);
+});
+
+test('traits: allAttrBonus summed, vitCap min, doubleWillMod any', () => {
+  const talents = baseChar({ raceId: 'human', traits: ['bigTalent', 'bigTalent2'], attrs: { ...CALC.defaults().attrs, сила: 12 } });
+  assert.equal(CALC.attrFinal(talents, DATA)['сила'], 14); // 12 + 1 + 1
+  const fragile = baseChar({ raceId: 'dwarf', traits: ['fragile', 'fragile2'], attrs: { ...CALC.defaults().attrs, живучесть: 14 } });
+  assert.equal(CALC.attrFinal(fragile, DATA)['живучесть'], 9); // min(9, 12)
+  const opt = baseChar({ raceId: 'human', traits: ['dreamer'], attrs: { ...CALC.defaults().attrs, воля: 14 } });
+  assert.equal(CALC.mods(opt, DATA)['воля'], 4); // doubleWillMod
+});
+
+test('ac: custom armor id uses stored ac value', () => {
+  const D = { ...DATA, armor: { plate: { name: 'Латы', ac: 18 } } };
+  const c = baseChar({ armor: { id: 'custom', label: 'Халат', ac: 13 } });
+  assert.equal(CALC.ac(c, D), 13);
+  const std = baseChar({ armor: { id: 'plate', label: 'Латы' } });
+  assert.equal(CALC.ac(std, D), 18);
+});
+
+test('inventoryWeight: sums weight*qty, ignores legacy strings', () => {
+  const c = baseChar({ inventory: [
+    'Факел',
+    { name: 'Веревка', desc: '', qty: 2, weight: 1.5 },
+    { name: 'Лопата', desc: '', qty: 1, weight: 4 },
+    { name: 'Пусто', desc: '', qty: 0, weight: 2 },
+  ] });
+  assert.equal(CALC.inventoryWeight(c), 7); // 0 + 3 + 4 + 0
+  assert.equal(CALC.inventoryWeight(baseChar({})), 0);
 });
 
 test('abilityCost: телесные 1, приобретённые 0.5', () => {

@@ -161,7 +161,7 @@ APP.newChar();
 APP.state.wizard.draft.raceId = 'human';
 APP.state.wizard.draft.statusId = 'peasant';
 APP.state.wizard.draft.attrs = { сила: 12, ловкость: 12, живучесть: 14, воля: 12, восприятие: 10, харизма: 10, мудрость: 10, интеллект: 10 };
-APP.state.wizard.draft.traitId = 't11';
+APP.state.wizard.draft.traits = ['t11'];
 APP.state.wizard.draft.traitRolled = true;
 APP.state.wizard.draft.specializations = ['strength', 'martial', 'conjuration', 'warding'];
 APP.createChar();

@@ -87,6 +87,11 @@ function change(action, value, checked) {
   appEl.onchange({ target: t });
 }
 
+function input(action, id, value) {
+  const t = { getAttribute: (n) => (n === 'data-action' ? action : n === 'data-id' ? id : null), value };
+  appEl.oninput({ target: t });
+}
+
 sandbox.Math.random = () => 0.5;
 
 const char = {
@@ -135,6 +140,16 @@ ok(char.stamina.current === 3, 'pool -1');
 click('pool-rest', 'mana');
 ok(char.mana.current === 6, 'pool rest to max');
 
+click('pool-edit', 'hp');
+m = markup();
+ok(m.includes('pool-set') && m.includes('data-action="pool-set"'), 'pool edit renders input');
+input('pool-set', 'hp', '50');
+ok(char.hp.current === 50, 'pool-set manual 50');
+input('pool-set', 'hp', '999');
+ok(char.hp.current === 55, 'pool-set clamps to max');
+input('pool-set', 'hp', '-5');
+ok(char.hp.current === 0, 'pool-set clamps to 0');
+
 APP.mutate(() => { char.hp.current = 0; char.deathSaves.fail = 0; });
 m = markup();
 ok(m.includes('Спасброски от смерти'), 'death panel shown at 0 hp');
@@ -179,7 +194,7 @@ APP.newChar();
 APP.state.wizard.draft.raceId = 'human';
 APP.state.wizard.draft.statusId = 'peasant';
 APP.state.wizard.draft.attrs = { сила: 12, ловкость: 12, живучесть: 14, воля: 12, восприятие: 10, харизма: 10, мудрость: 10, интеллект: 10 };
-APP.state.wizard.draft.traitId = 't15';
+APP.state.wizard.draft.traits = ['t15'];
 APP.state.wizard.draft.traitRolled = true;
 APP.state.wizard.draft.specializations = ['martial', 'strength', 'warding', 'transmutation'];
 APP.createChar();
@@ -191,7 +206,7 @@ APP.goto('sheet');
 click('new-turn');
 ok(m15.stamina.current === st0 + 1 && m15.mana.current === ma0 + 1, 'marathoner restores 1/1 on new turn');
 
-APP.mutate(() => { m15.traitId = 't11'; });
+APP.mutate(() => { m15.traits = ['t11']; });
 APP.goto('sheet');
 APP.mutate(() => { m15.inspiration = 0; });
 click('new-day');

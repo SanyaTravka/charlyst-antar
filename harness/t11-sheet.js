@@ -120,7 +120,7 @@ APP.goto('sheet');
 
 let m = markup();
 ok(APP.state.screen === 'sheet', 'screen = sheet');
-ok(m.includes('Характеристики') && m.includes('Боевые параметры') && m.includes('Оружие') && m.includes('Доспех и щит') && m.includes('Инвентарь') && m.includes('Черта и статус') && m.includes('Дайсеры'), 'all sections');
+ok(m.includes('Характеристики') && m.includes('Боевые параметры') && m.includes('Оружие') && m.includes('Доспех и щит') && m.includes('Черта и статус') && m.includes('Дайсеры'), 'all sections');
 ok(m.includes('Хиты') && m.includes('55'), 'hp 55 (dwarf con14)');
 ok(m.includes('10') && m.includes('Запас сил'), 'stamina 10');
 ok(m.includes('КД') && m.includes('10'), 'ac 10 bare');
@@ -157,13 +157,38 @@ ok(m.includes('Атак/ход: 3'), 'dagger 3 attacks/round');
 click('weapon-del', '0');
 ok(char.weapons.length === 0, 'weapon removed');
 
-const invRow = { querySelector: (sel) => (sel === '[data-action="inv-input"]' ? { value: 'Факел' } : null) };
+click('tab', 'inventory');
+m = markup();
+ok(APP.state.tab === 'inventory', 'inventory tab opened');
+ok(m.includes('Суммарный вес') && m.includes('0'), 'empty inventory weight 0');
+const invRow = {
+  querySelector: (sel) => ({
+    '[data-action="inv-name"]': { value: 'Факел' },
+    '[data-action="inv-qty"]': { value: '2' },
+    '[data-action="inv-weight"]': { value: '1.5' },
+    '[data-action="inv-desc"]': { value: 'Даёт свет' },
+  })[sel] || null,
+};
 click('inv-add', null, { parentNode: invRow });
-ok(char.inventory.indexOf('Факел') !== -1, 'inventory add');
+ok(char.inventory.length === 1 && char.inventory[0].name === 'Факел' && char.inventory[0].qty === 2 && char.inventory[0].weight === 1.5 && char.inventory[0].desc === 'Даёт свет', 'inventory add (object with desc)');
 m = markup();
 ok(m.includes('Факел'), 'inventory item shown');
+ok(m.includes('Суммарный вес') && m.includes('3'), 'weight 2×1.5 = 3');
+
+input('inv-qty-set', '0', '4');
+ok(char.inventory[0].qty === 4, 'inv qty edited');
+input('inv-name-set', '0', 'Факелы');
+ok(char.inventory[0].name === 'Факелы', 'inv name edited');
+input('inv-weight-set', '0', '1');
+ok(char.inventory[0].weight === 1, 'inv weight edited');
+m = markup();
+ok(m.includes('Суммарный вес') && m.includes('4'), 'weight recalc to 4×1 = 4');
+
 click('inv-del', '0');
 ok(char.inventory.length === 0, 'inventory remove');
+click('tab', 'overview');
+m = markup();
+ok(m.includes('Характеристики'), 'back to overview');
 
 click('dice', 'd8', { _closest: (sel) => null });
 ok(appEl.children.some(c => (c.innerHTML || '').includes('Кость d8: 5')), 'dice toast');
@@ -189,7 +214,7 @@ ok(true, 'export call ok');
 APP.newChar();
 APP.state.wizard.draft.raceId = 'human';
 APP.state.wizard.draft.statusId = 'peasant';
-APP.state.wizard.draft.traitId = 't11';
+APP.state.wizard.draft.traits = ['t11'];
 APP.state.wizard.draft.traitRolled = true;
 APP.state.wizard.draft.specializations = ['martial', 'strength', 'warding', 'transmutation'];
 APP.state.wizard.draft.spentOS = 0;

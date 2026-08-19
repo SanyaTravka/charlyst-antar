@@ -154,11 +154,15 @@ click('wizard-next');
 eq(state.wizard.step, 3, 'next -> step 3');
 rnd.value = 0.55;
 click('trait-roll');
-eq(state.wizard.draft.traitId, 't12', 'd20 roll -> Тупой (t12)');
+eq(state.wizard.draft.traits[0], 't12', 'd20 roll -> Тупой (t12)');
+click('trait-pick', 't12');
+eq(state.wizard.draft.traits.length, 0, 'trait-pick toggles off');
+click('trait-pick', 't12');
+eq(state.wizard.draft.traits.length, 1, 'trait-pick toggles on');
 click('wizard-next');
 eq(state.wizard.step, 4, 'next -> step 4');
 
-ok(text().includes('Осталось очков: 27'), 'counter starts at 27');
+ok(text().includes('распределяются свободно'), 'step 4 free-spread header');
 click('attr-plus', 'интеллект');
 eq(state.wizard.draft.attrs['интеллект'], 10, 'Тупой: + from 8 jumps to 10 (skips 9)');
 click('attr-minus', 'интеллект');
@@ -169,10 +173,9 @@ for (const a of ['сила', 'ловкость', 'живучесть', 'воля
   for (let i = 0; i < 5; i++) click('attr-plus', a);
 }
 eq(state.wizard.draft.attrs['сила'], 13, 'сила at 13');
-ok(text().includes('Осталось очков: 0'), 'counter reaches 0');
 ok(text().includes('Финал: 14'), 'attrFinal preview (13 + human +1)');
 ok(text().includes('Модификатор: +2'), 'mods preview');
-eq(click('wizard-next'), true, 'Далее enabled at 0 points on step 4');
+eq(click('wizard-next'), true, 'Далее enabled on step 4 (free spread)');
 eq(state.wizard.step, 5, 'next -> step 5');
 
 const specCards = find('spec');
@@ -214,7 +217,7 @@ eq(state.screen, 'sheet', 'screen -> sheet');
 eq(state.chars.length, 1, 'char pushed to state.chars');
 const cA = state.chars[0];
 eq(state.currentId, cA.id, 'currentId set');
-eq(cA.traitId, 't12', 'trait stored');
+eq(cA.traits[0], 't12', 'trait stored');
 eq(cA.hp.current, cA.hp.max, 'hp current==max');
 eq(cA.hp.max, 52, 'hp.max 52 = 40 + round(2*3.5) + 5 hp bonus');
 eq(cA.stamina.max, 13, 'stamina.max 13 = 2 + 4*2 + 3 (freePeasant)');
@@ -235,7 +238,7 @@ click('status', 'slave');
 click('wizard-next');
 rnd.value = 0.8;
 click('trait-roll');
-eq(state.wizard.draft.traitId, 't17', 'd20 roll -> Потенциал (t17)');
+eq(state.wizard.draft.traits[0], 't17', 'd20 roll -> Потенциал (t17)');
 click('wizard-next');
 ok(text().includes('макс 10'), 'gnome cap hint rendered');
 for (const a of ['сила', 'ловкость', 'восприятие']) {
@@ -250,7 +253,6 @@ for (const a of ['живучесть', 'воля', 'мудрость']) {
   for (let i = 0; i < 7; i++) click('attr-plus', a);
 }
 eq(state.wizard.draft.attrs['воля'], 15, 'воля 15');
-ok(text().includes('Осталось очков: 0'), 'gnome counter 0');
 ok(text().includes('Финал: 18'), 'attrFinal воля 18 (15 + gnome +3)');
 ok(text().includes('Финал: 12'), 'attrFinal интеллект 12 (8 + gnome +4)');
 click('wizard-next');
@@ -310,13 +312,14 @@ click('status', 'freePeasant');
 click('wizard-next');
 rnd.value = 0.9;
 click('trait-roll');
-eq(state.wizard.draft.traitId, 't19', 'd20 roll -> Гений (t19)');
+eq(state.wizard.draft.traits[0], 't19', 'd20 roll -> Гений (t19)');
 click('wizard-next');
 for (const a of ['сила', 'ловкость', 'живучесть', 'воля', 'восприятие', 'харизма', 'мудрость']) {
   for (let i = 0; i < 3; i++) click('attr-plus', a);
 }
 for (let i = 0; i < 6; i++) click('attr-plus', 'интеллект');
-eq(pointsLeftOf(state.wizard.draft), 0, 't19 char spreads 27');
+eq(['сила', 'ловкость', 'живучесть', 'воля', 'восприятие', 'харизма', 'мудрость'].every(a => state.wizard.draft.attrs[a] === 11), true, 't19 char spreads +3 over other attrs');
+eq(state.wizard.draft.attrs['интеллект'], 14, 't19 интеллект 14');
 click('wizard-next');
 eq(state.wizard.step, 5, 't19 -> step 5');
 ok(text().includes('0 из 5'), 'needs 5 specs for t19');
@@ -335,7 +338,7 @@ click('status', 'freePeasant');
 click('wizard-next');
 rnd.value = 0.85;
 click('trait-roll');
-eq(state.wizard.draft.traitId, 't18', 'd20 roll -> Хрупкий (t18)');
+eq(state.wizard.draft.traits[0], 't18', 'd20 roll -> Хрупкий (t18)');
 click('wizard-next');
 ok(text().includes('макс 9'), 'Хрупкий cap hint');
 click('attr-plus', 'живучесть');
@@ -345,10 +348,5 @@ forceClick('attr-plus', 'живучесть');
 eq(state.wizard.draft.attrs['живучесть'], 9, 'Хрупкий plus-guard holds at 9');
 eq(click('attr-minus', 'живучесть'), true, '- works at 9');
 eq(state.wizard.draft.attrs['живучесть'], 8, 'живучесть back to 8');
-
-function pointsLeftOf(d) {
-  return 27 - ['сила', 'ловкость', 'живучесть', 'воля', 'восприятие', 'харизма', 'мудрость', 'интеллект']
-    .reduce((s, a) => s + (d.attrs[a] - 8), 0);
-}
 
 console.log('\n' + passed + ' assertions passed, 0 console errors');

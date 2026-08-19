@@ -6,7 +6,7 @@ const CALC = (function () {
   function defaults() {
     const attrs = {}; ATTRS.forEach(a => attrs[a] = 8);
     return {
-      version: 1, id: '', name: '', raceId: null, statusId: null, traitId: null, traitRolled: false,
+      version: 1, id: '', name: '', raceId: null, statusId: null, traitId: null, traits: [], traitRolled: false,
       level: 1, attrs,
       hp: { current: 0, max: 0 }, stamina: { current: 0, max: 0 }, mana: { current: 0, max: 0 },
       trained: { skills: {}, lores: {}, crafts: {} },
@@ -23,7 +23,18 @@ const CALC = (function () {
 
   function race(char, DATA) { return DATA.races[char.raceId] || null; }
   function status(char, DATA) { return DATA.statuses[char.statusId] || null; }
-  function trait(char, DATA) { return DATA.traits[char.traitId] || null; }
+  function traitIds(char) {
+    if (Array.isArray(char.traits) && char.traits.length) return char.traits;
+    return char.traitId ? [char.traitId] : [];
+  }
+
+  function traits(char, DATA) {
+    return traitIds(char).map(id => DATA.traits[id] || null).filter(Boolean);
+  }
+
+  function hasTrait(char, DATA, id) {
+    return traitIds(char).indexOf(id) !== -1;
+  }
 
   function sumOs(level, DATA) {
     let s = 0;
@@ -33,9 +44,10 @@ const CALC = (function () {
 
   function totalOS(char, DATA) {
     let s = sumOs(char.level, DATA);
-    const t = trait(char, DATA);
-    if (t && t.osEvery3Levels) s += Math.floor(char.level / 3);
-    if (t && t.osPerLevel) s += t.osPerLevel * char.level;
+    for (const t of traits(char, DATA)) {
+      if (t.osEvery3Levels) s += Math.floor(char.level / 3);
+      if (t.osPerLevel) s += t.osPerLevel * char.level;
+    }
     s += char.extraOS || 0;
     return s;
   }
@@ -58,9 +70,14 @@ const CALC = (function () {
     }
     const st = status(char, DATA);
     if (st && st.bonuses) for (const k in st.bonuses) out[k] += st.bonuses[k];
-    const t = trait(char, DATA);
-    if (t && t.allAttrBonus) ATTRS.forEach(a => out[a] += t.allAttrBonus);
-    if (t && t.vitCap) out['живучесть'] = Math.min(out['живучесть'], t.vitCap);
+    let allBonus = 0;
+    let vitCapMin = Infinity;
+    for (const t of traits(char, DATA)) {
+      if (t.allAttrBonus) allBonus += t.allAttrBonus;
+      if (t.vitCap) vitCapMin = Math.min(vitCapMin, t.vitCap);
+    }
+    if (allBonus) ATTRS.forEach(a => out[a] += allBonus);
+    if (vitCapMin !== Infinity) out['живучесть'] = Math.min(out['живучесть'], vitCapMin);
     if (DATA.allAbilities) {
       for (const id of char.abilities) {
         const ab = DATA.allAbilities[id];
@@ -75,8 +92,8 @@ const CALC = (function () {
     const f = attrFinal(char, DATA);
     const m = {};
     ATTRS.forEach(a => m[a] = mod(f[a]));
-    const t = trait(char, DATA);
-    if (t && t.doubleWillMod) { m['воля'] *= 2; } // «Оптимист» — только отображение спасбросков/проверок
+const t = traits(char, DATA);
+    if (t.some(x => x.doubleWillMod)) { m['воля'] *= 2; } // «Оптимист» — воля к защите удваивается
     return m;
   }
 
@@ -131,7 +148,10 @@ const CALC = (function () {
 
   function ac(char, DATA) {
     let a = 10;
-    if (char.armor && DATA.armor && char.armor.id && DATA.armor[char.armor.id]) a = DATA.armor[char.armor.id].ac;
+    if (char.armor && char.armor.id) {
+      if (char.armor.id === 'custom') a = char.armor.ac;
+      else if (DATA.armor && DATA.armor[char.armor.id]) a = DATA.armor[char.armor.id].ac;
+    }
     if (char.shield && DATA.shield && char.shield.id && DATA.shield[char.shield.id]) a += DATA.shield[char.shield.id].bonus;
     if (DATA.allAbilities) for (const id of char.abilities) {
       const ab = DATA.allAbilities[id];
@@ -148,6 +168,18 @@ const CALC = (function () {
     return 0.5;
   }
 
-  return { ATTRS, mod, defaults, race, status, trait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie };
+  function inventoryWeight(char) {
+    const inv = Array.isArray(char.inventory) ? char.inventory : [];
+    let w = 0;
+    for (const it of inv) {
+      if (!it || typeof it !== 'object') continue;
+      const weight = parseFloat(it.weight);
+      const qty = parseInt(it.qty, 10);
+      w += Math.max(0, weight || 0) * Math.max(0, qty || 0);
+    }
+    return w;
+  }
+
+  return { ATTRS, mod, defaults, race, status, traitIds, traits, hasTrait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie, inventoryWeight };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = { CALC };

@@ -191,7 +191,7 @@ ok(m.includes('ОС: 2 / 5'), 'totalOS 5 at lvl2 shown in specs');
 
 const t12 = seed();
 t12.id = 't12-seed';
-t12.traitId = 't12';
+t12.traits = ['t12'];
 APP.state.chars.push(t12);
 APP.state.currentId = t12.id;
 APP.calcFull(t12);
@@ -206,7 +206,7 @@ ok(!m.includes('Повышение уровня</h3>'), 'close works');
 
 const t1 = seed();
 t1.id = 't1-seed';
-t1.traitId = 't1';
+t1.traits = ['t1'];
 t1.level = 2;
 APP.state.chars.push(t1);
 APP.state.currentId = t1.id;

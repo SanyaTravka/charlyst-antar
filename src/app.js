@@ -4,7 +4,7 @@
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '', refQuery: '' };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', spellQuery: '', refQuery: '', editingPool: null };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -279,42 +279,35 @@
     container.appendChild(el(`
       <div class="row">
         <button class="btn" data-action="trait-roll">Кинуть d20</button>
-        <button class="btn btn-danger" data-action="trait-skip">Пропустить</button>
+        <button class="btn btn-danger" data-action="trait-skip">Очистить</button>
       </div>
+      <p class="small muted" style="margin-top:1rem;">Выберите любые черты (можно несколько) или бросьте d20 для случайной.</p>
     `));
-    if (!d.traitRolled) {
-      container.appendChild(el('<p class="small muted" style="margin-top:1rem;">Бросьте d20, чтобы определить черту персонажа, или пропустите.</p>'));
-    } else {
-      const t = d.traitId ? DATA.traits[d.traitId] : null;
-      if (t) {
-        container.appendChild(el(`
-          <div class="card" style="margin-top:1rem;">
-            <div class="row between">
-              <h3>${esc(t.name)}</h3>
-              <span class="muted small">Бросок: ${t.num}</span>
-            </div>
-            <p class="small muted">«${esc(t.quote)}»</p>
-            <p>${esc(t.desc)}</p>
-          </div>
-        `));
-      } else {
-        container.appendChild(el('<div class="card" style="margin-top:1rem;"><p class="muted">Черта пропущена — персонаж без черты.</p></div>'));
-      }
+    const grid = el('<div class="grid"></div>');
+    for (const id in DATA.traits) {
+      const t = DATA.traits[id];
+      const sel = d.traits.indexOf(id) !== -1;
+      grid.appendChild(el(`
+        <div class="card char-card" data-action="trait-pick" data-id="${esc(id)}" style="${sel ? 'border:2px solid var(--accent);' : ''}">
+          <h3>${esc(t.name)} <span class="muted small">№${t.num}</span></h3>
+          <p class="small muted">«${esc(t.quote)}»</p>
+          <p class="small">${esc(t.desc)}</p>
+          ${sel ? '<p class="small muted">выбрано</p>' : ''}
+        </div>
+      `));
     }
+    container.appendChild(grid);
   }
 
   function specRequired(d) {
-    return d.traitId === 't19' ? 5 : 4;
-  }
-
-  function pointsLeft(d) {
-    return 27 - CALC.ATTRS.reduce((s, a) => s + (d.attrs[a] - 8), 0);
+    return CALC.hasTrait(d, DATA, 't19') ? 5 : 4;
   }
 
   function attrMax(d, a) {
     let m = 18;
-    const t = d.traitId ? DATA.traits[d.traitId] : null;
-    if (t && t.vitCap && a === 'живучесть') m = Math.min(m, t.vitCap);
+    for (const t of CALC.traits(d, DATA)) {
+      if (t.vitCap && a === 'живучесть') m = Math.min(m, t.vitCap);
+    }
     const r = d.raceId ? DATA.races[d.raceId] : null;
     if (r && r.attrCaps && r.attrCaps[a]) m = Math.min(m, r.attrCaps[a]);
     return m;
@@ -323,9 +316,9 @@
   function attrInc(a) {
     mutate(() => {
       const d = state.wizard.draft;
-      if (d.attrs[a] >= attrMax(d, a) || pointsLeft(d) <= 0) return;
+      if (d.attrs[a] >= attrMax(d, a)) return;
       let v = d.attrs[a] + 1;
-      if (d.traitId === 't12' && a === 'интеллект' && v === 9) v = 10;
+      if (CALC.hasTrait(d, DATA, 't12') && a === 'интеллект' && v === 9) v = 10;
       d.attrs[a] = v;
     });
   }
@@ -335,20 +328,19 @@
       const d = state.wizard.draft;
       if (d.attrs[a] <= 8) return;
       let v = d.attrs[a] - 1;
-      if (d.traitId === 't12' && a === 'интеллект' && v === 9) v = 8;
+      if (CALC.hasTrait(d, DATA, 't12') && a === 'интеллект' && v === 9) v = 8;
       d.attrs[a] = v;
     });
   }
 
   function wizardStep4(container) {
     const d = state.wizard.draft;
-    const left = pointsLeft(d);
     const fin = CALC.attrFinal(d, DATA);
     const mds = CALC.mods(d, DATA);
     container.appendChild(el(`
       <div class="row between" style="margin-bottom:0.5rem;">
-        <h3 style="margin:0;">Осталось очков: ${left}</h3>
-        <span class="muted small">27 очков поверх значения 8</span>
+        <h3 style="margin:0;">Характеристики</h3>
+        <span class="muted small">распределяются свободно (максимум — потолок расы)</span>
       </div>
     `));
     for (const a of CALC.ATTRS) {
@@ -356,7 +348,7 @@
       const max = attrMax(d, a);
       const note = [];
       if (max < 18) note.push('макс ' + max);
-      if (d.traitId === 't12' && a === 'интеллект') note.push('без 9');
+      if (CALC.hasTrait(d, DATA, 't12') && a === 'интеллект') note.push('без 9');
       container.appendChild(el(`
         <div class="row between" style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
           <div>
@@ -366,7 +358,7 @@
           <div class="row">
             <button class="btn" data-action="attr-minus" data-id="${esc(a)}"${dis(cur <= 8)}>−</button>
             <strong style="min-width:1.6rem;text-align:center;">${cur}</strong>
-            <button class="btn" data-action="attr-plus" data-id="${esc(a)}"${dis(left <= 0 || cur >= max)}>+</button>
+            <button class="btn" data-action="attr-plus" data-id="${esc(a)}"${dis(cur >= max)}>+</button>
           </div>
         </div>
       `));
@@ -468,7 +460,7 @@
         <p class="small muted" style="margin-top:0.5rem;">Бонусы: ЗС +${d.osBonuses.stamina} · Мана +${d.osBonuses.mana} · HP +${d.osBonuses.hp}</p>
       </div>
     `));
-    if (d.traitId === 't17') {
+    if (CALC.hasTrait(d, DATA, 't17')) {
       const block = el('<div class="card" style="margin-top:1rem;"></div>');
       block.appendChild(el('<div class="row between"><h3 style="margin:0;">Потенциал</h3><span class="muted small">+10 к запасу сил или мане</span></div>'));
       if (!d.potentialRolled) {
@@ -549,8 +541,9 @@
     delete c.potentialRolled;
     delete c.potentialPoints;
     delete c.potentialTo;
-    const tr = CALC.trait(c, DATA);
-    if (tr && tr.inspirationDaily) c.inspiration = tr.inspirationDaily;
+    const ts = CALC.traits(c, DATA);
+    const insp = ts.reduce((s, t) => s || (t.inspirationDaily || 0), 0);
+    if (insp) c.inspiration = insp;
     c.hp.current = c.hp.max = CALC.maxHp(c, DATA);
     c.stamina.current = c.stamina.max = CALC.maxStamina(c, DATA);
     c.mana.current = c.mana.max = CALC.maxMana(c, DATA);
@@ -575,8 +568,8 @@
     const w = state.wizard;
     return w.step === 1 ? !!w.draft.raceId
       : w.step === 2 ? !!w.draft.statusId
-      : w.step === 3 ? !!w.draft.traitRolled
-      : w.step === 4 ? pointsLeft(w.draft) === 0
+      : w.step === 3 ? true
+      : w.step === 4 ? true
       : w.step === 5 ? w.draft.specializations.length === specRequired(w.draft)
       : false;
   }
@@ -620,6 +613,7 @@
     if (state.tab === 'specs') renderSpecs(page, char);
     else if (state.tab === 'spells') renderSpells(page, char);
     else if (state.tab === 'refbook') renderRefbook(page);
+    else if (state.tab === 'inventory') renderInventory(page, char);
     else if (state.tab === 'notes') renderNotes(page, char);
     else renderOverview(page, char);
     app.appendChild(page);
@@ -630,9 +624,10 @@
   }
 
   function trackerBlock(char) {
-    const tr = CALC.trait(char, DATA);
-    const card = el('<div class="card" style="margin-bottom:1rem;"></div>');
-    card.appendChild(el('<h3 style="margin-top:0;">Боевой трекер</h3>'));
+    const ts = CALC.traits(char, DATA);
+    const insp = ts.reduce((s, t) => s || (t.inspirationDaily || 0), 0);
+    const rerollInit = ts.some(t => t.rerollInit);
+    const card = el('<details class="card" open style="margin-bottom:1rem;"><summary style="cursor:pointer;font-weight:700;">Боевой трекер</summary></details>');
     card.appendChild(barRow(char, 'Хиты', char.hp, 'hp', true));
     card.appendChild(barRow(char, 'Запас сил', char.stamina, 'stamina', false));
     card.appendChild(barRow(char, 'Мана', char.mana, 'mana', false));
@@ -673,13 +668,13 @@
     `);
     card.appendChild(conds);
     const hints = [];
-    if (tr && tr.rerollInit) hints.push('Живчик: 3 броска d20, лучший');
-    if (char.traitId === 't16') hints.push('Параноик: −10');
-    if (char.traitId === 't10') hints.push('Косноязычный: −2 после вербального заклинания (вручную)');
+    if (rerollInit) hints.push('Живчик: 3 броска d20, лучший');
+    if (CALC.hasTrait(char, DATA, 't16')) hints.push('Параноик: −10');
+    if (CALC.hasTrait(char, DATA, 't10')) hints.push('Косноязычный: −2 после вербального заклинания (вручную)');
     const initRow = el(`
       <div class="row" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
         <button class="btn" data-action="init-roll">Бросок инициативы</button>
-        <span class="small muted">d20 + скорость${tr && tr.rerollInit ? ' (3 броска)' : ''}${char.traitId === 't16' ? ' − 10' : ''}</span>
+        <span class="small muted">d20 + скорость${rerollInit ? ' (3 броска)' : ''}${CALC.hasTrait(char, DATA, 't16') ? ' − 10' : ''}</span>
       </div>
     `);
     if (hints.length) {
@@ -689,7 +684,7 @@
     const turnRow = el(`
       <div class="row" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
         <button class="btn" data-action="new-turn">Новый ход</button>
-        ${tr && tr.inspirationDaily ? `<button class="btn" data-action="new-day">Новый день</button>` : ''}
+        ${insp ? `<button class="btn" data-action="new-day">Новый день</button>` : ''}
       </div>
     `);
     card.appendChild(turnRow);
@@ -699,11 +694,15 @@
   function barRow(char, label, pool, key, low) {
     const isLow = low && pool.max > 0 && pool.current <= pool.max / 3;
     const pct = pool.max > 0 ? Math.round((pool.current / pool.max) * 100) : 0;
+    const editing = state.editingPool === key;
+    const val = editing
+      ? `<input class="field" type="number" min="0" max="${pool.max}" data-action="pool-set" data-id="${key}" value="${esc(pool.current)}" style="width:4.5rem;"> / ${pool.max}`
+      : `<button class="pool-val" data-action="pool-edit" data-id="${key}" title="Нажмите, чтобы ввести вручную">${pool.current} / ${pool.max}</button>`;
     return el(`
       <div style="margin:0.6rem 0;">
         <div class="row between">
           <strong>${esc(label)}</strong>
-          <span class="muted small">${pool.current} / ${pool.max}${isLow ? ' · низкий уровень: скорость и уклонение вдвое' : ''}</span>
+          <span class="muted small">${val}${isLow ? ' · низкий уровень: скорость и уклонение вдвое' : ''}</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%;${isLow ? 'background:var(--danger);' : ''}"></div></div>
         <div class="row" style="margin-top:0.35rem;">
@@ -863,12 +862,11 @@
   }
 
   function renderNotes(container, char) {
-    container.appendChild(el(`
+    container.appendChild(section('Заметки', el(`
       <div>
-        <h3 style="margin:0 0 0.75rem;">Заметки</h3>
         <textarea class="field" rows="14" style="width:100%;resize:vertical;" data-action="notes-input" placeholder="Запишите всё, что важно для персонажа...">${esc(char.notes)}</textarea>
       </div>
-    `));
+    `)));
   }
 
   function notesInput(v) {
@@ -915,7 +913,7 @@
   }
 
   function tabBar() {
-    const tabs = [['overview', 'Обзор'], ['specs', 'Специализации'], ['spells', 'Заклинания'], ['refbook', 'Справочник'], ['notes', 'Заметки']];
+    const tabs = [['overview', 'Обзор'], ['inventory', 'Инвентарь'], ['specs', 'Специализации'], ['spells', 'Заклинания'], ['refbook', 'Справочник'], ['notes', 'Заметки']];
     return el(`
       <div class="tabs">
         ${tabs.map(([id, name]) => `<button class="tab${state.tab === id ? ' active' : ''}" data-action="tab" data-id="${id}">${esc(name)}</button>`).join('')}
@@ -925,6 +923,7 @@
 
   function tabSet(id) {
     state.tab = id;
+    state.editingPool = null;
     weaponModalOpen = false;
     condModalOpen = false;
     exhModalOpen = false;
@@ -1050,8 +1049,7 @@
     for (const sid of char.specializations) {
       const spec = DATA.specializations[sid];
       if (!spec) continue;
-      const card = el('<div class="card" style="margin-bottom:1rem;"></div>');
-      card.appendChild(el(`<h3 style="margin-top:0;">${esc(spec.name)} <span class="muted small">${spec.somatic ? 'телесная' : 'приобретённая'}${spec.empty ? ' · ждём редакций' : ''}</span></h3>`));
+      const card = el(`<details class="card" open style="margin-bottom:1rem;"><summary style="cursor:pointer;font-weight:700;">${esc(spec.name)} <span class="muted small">${spec.somatic ? 'телесная' : 'приобретённая'}${spec.empty ? ' · ждём редакций' : ''}</span></summary></details>`);
       if (spec.empty) {
         card.appendChild(customAbilitiesBlock(char, sid));
       } else {
@@ -1240,8 +1238,8 @@
     });
   }
 
-  function section(title, body) {
-    const s = el(`<div class="card"><h3 style="margin-top:0;">${esc(title)}</h3></div>`);
+  function section(title, body, open) {
+    const s = el(`<details class="card"${open === false ? '' : ' open'}><summary>${esc(title)}</summary></details>`);
     s.appendChild(body);
     return s;
   }
@@ -1253,7 +1251,6 @@
     grid.appendChild(section('Боевые параметры', battleBlock(char, out)));
     grid.appendChild(section('Оружие', weaponsBlock(char)));
     grid.appendChild(section('Доспех и щит', armorBlock(char)));
-    grid.appendChild(section('Инвентарь', inventoryBlock(char)));
     grid.appendChild(section('Черта и статус', traitBlock(char)));
     grid.appendChild(section('Дайсеры', diceBlock(char)));
     page.appendChild(grid);
@@ -1308,7 +1305,7 @@
 
   function weaponsBlock(char) {
     const box = el('<div></div>');
-    const aggressive = char.traitId === 't7';
+    const aggressive = CALC.hasTrait(char, DATA, 't7');
     char.weapons.forEach((w, i) => {
       const base = weaponBase(w);
       const cross = isCrossbow(base);
@@ -1385,7 +1382,7 @@
 
   function armorBlock(char) {
     const box = el('<div></div>');
-    const armorOpts = [['', '—']].concat(Object.keys(DATA.armor).map(id => [id, DATA.armor[id].name]));
+    const armorOpts = [['', '—']].concat(Object.keys(DATA.armor).map(id => [id, DATA.armor[id].name])).concat([['custom', 'Кастомная броня…']]);
     const shieldOpts = [['', '—']].concat(Object.keys(DATA.shield).map(id => [id, DATA.shield[id].name]));
     box.appendChild(el(`
       <div class="row">
@@ -1399,42 +1396,76 @@
         </select>
       </div>
     `));
-    const a = char.armor && DATA.armor[char.armor.id];
-    if (a) box.appendChild(el(`<p class="small muted" style="margin:0.5rem 0 0;">${esc(a.name)} (КД ${a.ac}): ${esc(a.penalties)}</p>`));
+    if (char.armor && char.armor.id === 'custom') {
+      const a = char.armor;
+      box.appendChild(el(`
+        <div class="row" style="margin-top:0.5rem;">
+          <input class="field" style="flex:1;" data-action="armor-label-set" value="${esc(a.label || '')}" placeholder="Название брони">
+          <input class="field" type="number" min="10" max="30" data-action="armor-ac-set" value="${esc(a.ac != null ? a.ac : 10)}" style="width:5rem;" title="КД">
+        </div>
+      `));
+      box.appendChild(el(`<p class="small muted" style="margin:0.5rem 0 0;">Кастомная броня (КД ${a.ac != null ? a.ac : 10}): ${esc(a.label || 'без названия')}.</p>`));
+    } else {
+      const a = char.armor && DATA.armor[char.armor.id];
+      if (a) box.appendChild(el(`<p class="small muted" style="margin:0.5rem 0 0;">${esc(a.name)} (КД ${a.ac}): ${esc(a.penalties)}</p>`));
+    }
     return box;
   }
 
-  function inventoryBlock(char) {
-    const box = el('<div></div>');
+  function renderInventory(container, char) {
+    const weight = CALC.inventoryWeight(char);
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.75rem;">
+        <h3 style="margin:0;">Инвентарь</h3>
+        <span class="muted small">Суммарный вес: ${weight}</span>
+      </div>
+    `));
+    container.appendChild(el(`
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="row">
+          <input class="field" style="flex:1;" data-action="inv-name" placeholder="Название">
+          <input class="field" type="number" min="0" data-action="inv-qty" value="1" style="width:4rem;" title="Количество">
+          <input class="field" type="number" min="0" step="0.1" data-action="inv-weight" placeholder="вес" style="width:5rem;" title="Вес">
+          <button class="btn" data-action="inv-add">Добавить</button>
+        </div>
+        <textarea class="field" style="width:100%;margin-top:0.35rem;" data-action="inv-desc" placeholder="Описание..."></textarea>
+      </div>
+    `));
+    if (!char.inventory.length) {
+      container.appendChild(el('<p class="small muted">Инвентарь пуст.</p>'));
+      return;
+    }
     char.inventory.forEach((it, i) => {
-      box.appendChild(el(`
-        <div class="row between" style="padding:0.25rem 0;border-bottom:1px solid var(--border);">
-          <span>${esc(it)}</span>
-          <button class="btn btn-danger" data-action="inv-del" data-id="${i}">Убрать</button>
+      const o = (typeof it === 'string') ? { name: it, desc: '', qty: 1, weight: 0 } : it;
+      const w = parseFloat(o.weight) || 0;
+      const q = parseInt(o.qty, 10) || 0;
+      container.appendChild(el(`
+        <div class="card" style="margin-bottom:0.5rem;">
+          <div class="row" style="align-items:center;">
+            <input class="field" style="flex:1;" data-action="inv-name-set" data-id="${i}" value="${esc(o.name || '')}">
+            <input class="field" type="number" min="0" data-action="inv-qty-set" data-id="${i}" value="${q}" style="width:4rem;" title="Количество">
+            <span class="small muted" style="margin:0 0.25rem;">вес</span>
+            <input class="field" type="number" min="0" step="0.1" data-action="inv-weight-set" data-id="${i}" value="${w}" style="width:5rem;">
+            <button class="btn btn-danger" data-action="inv-del" data-id="${i}">Удалить</button>
+          </div>
+          <textarea class="field" style="width:100%;margin-top:0.35rem;resize:vertical;" data-action="inv-desc-set" data-id="${i}" placeholder="Описание...">${esc(o.desc || '')}</textarea>
         </div>
       `));
     });
-    box.appendChild(el(`
-      <div class="row" style="margin-top:0.5rem;">
-        <input class="field" style="flex:1;" data-action="inv-input" placeholder="Название предмета">
-        <button class="btn" data-action="inv-add">Добавить</button>
-      </div>
-    `));
-    return box;
   }
 
   function traitBlock(char) {
     const box = el('<div></div>');
-    const t = CALC.trait(char, DATA);
+    const ts = CALC.traits(char, DATA);
     const s = CALC.status(char, DATA);
-    if (t) {
-      box.appendChild(el(`
+    if (ts.length) {
+      ts.forEach(t => box.appendChild(el(`
         <div class="card" style="margin:0.5rem 0;">
           <h4 style="margin:0;">Черта: ${esc(t.name)}</h4>
           <p class="small muted" style="margin:0.35rem 0;">«${esc(t.quote)}»</p>
           <p class="small">${esc(t.desc)}</p>
         </div>
-      `));
+      `)));
     } else {
       box.appendChild(el('<p class="small muted">Черта не выбрана.</p>'));
     }
@@ -1452,18 +1483,18 @@
   }
 
   function diceBlock(char) {
-    const tr = CALC.trait(char, DATA);
+    const insp = CALC.traits(char, DATA).reduce((s, t) => s || (t.inspirationDaily || 0), 0);
     const box = el('<div></div>');
     box.appendChild(el(`
       <div class="row">
         ${['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map(d => `<button class="btn" data-action="dice" data-id="${d}">${d}</button>`).join('')}
       </div>
     `));
-    if (tr && tr.inspirationDaily) {
+    if (insp) {
       box.appendChild(el(`
         <div class="row" style="margin-top:0.5rem;">
           <button class="btn" data-action="reroll"${dis(char.inspiration <= 0 || !lastDice)}>Переброс (вдохновение: ${esc(char.inspiration)})</button>
-          <span class="small muted">«Везунчик»: 3 вдохновения в день на перебросы.</span>
+          <span class="small muted">3 вдохновения в день на перебросы.</span>
         </div>
       `));
     }
@@ -1501,13 +1532,13 @@
   function initRoll() {
     const char = currentChar();
     if (!char) return;
-    const tr = CALC.trait(char, DATA);
-    const rolls = tr && tr.rerollInit ? 3 : 1;
+    const rerollInit = CALC.traits(char, DATA).some(t => t.rerollInit);
+    const rolls = rerollInit ? 3 : 1;
     let best = 0;
     for (let i = 0; i < rolls; i++) best = Math.max(best, 1 + Math.floor(Math.random() * 20));
     let total = best + CALC.speed(char, DATA);
     const parts = [best + (rolls > 1 ? ' (лучший из ' + rolls + ')' : ''), 'скорость ' + CALC.speed(char, DATA)];
-    if (char.traitId === 't16') { total -= 10; parts.push('Параноик −10'); }
+    if (CALC.hasTrait(char, DATA, 't16')) { total -= 10; parts.push('Параноик −10'); }
     lastDice = { desc: 'инициатива', roll: best, mod: total - best };
     toast('Инициатива: ' + parts.join(' + ') + ' = ' + total);
   }
@@ -1539,6 +1570,7 @@
     else if (action === 'human-close') humanClose();
     else if (action === 'trait-roll') traitRoll();
     else if (action === 'trait-skip') traitSkip();
+    else if (action === 'trait-pick') traitPick(id);
     else if (action === 'attr-plus') attrInc(id);
     else if (action === 'attr-minus') attrDec(id);
     else if (action === 'spec') pickSpec(id);
@@ -1568,6 +1600,7 @@
     else if (action === 'pool-dec5') poolDelta(id, -5);
     else if (action === 'pool-inc') poolDelta(id, 1);
     else if (action === 'pool-rest') poolDelta(id, null);
+    else if (action === 'pool-edit') poolEdit(id);
     else if (action === 'death-toggle') deathToggle(id, parseInt(t.getAttribute('data-index'), 10));
     else if (action === 'exh-inc') exhInc();
     else if (action === 'exh-dec') exhDec();
@@ -1606,10 +1639,26 @@
     if (action === 'name-set') nameSet(t.value);
     else if (action === 'attr-set') attrSet(t.getAttribute('data-id'), t.value);
     else if (action === 'mastery-set') masterySet(t.value);
+    else if (action === 'pool-set') poolSet(t.getAttribute('data-id'), t.value);
+    else if (action === 'inv-name-set') invSet(parseInt(t.getAttribute('data-id'), 10), 'name', t.value);
+    else if (action === 'inv-desc-set') invSet(parseInt(t.getAttribute('data-id'), 10), 'desc', t.value);
+    else if (action === 'inv-qty-set') invSet(parseInt(t.getAttribute('data-id'), 10), 'qty', t.value);
+    else if (action === 'inv-weight-set') invSet(parseInt(t.getAttribute('data-id'), 10), 'weight', t.value);
+    else if (action === 'armor-label-set') armorLabelSet(t.value);
+    else if (action === 'armor-ac-set') armorAcSet(t.value);
     else if (action === 'spell-search') { state.spellQuery = String(t.value || ''); render(); }
     else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
     else if (action === 'notes-input') notesInput(t.value);
     else if (action === 'levelup-manual') levelUpManual(t.value);
+  }
+
+  function handleBlur(e) {
+    const t = e.target;
+    if (!t || !t.getAttribute) return;
+    if (t.getAttribute('data-action') === 'pool-set') {
+      state.editingPool = null;
+      render();
+    }
   }
 
   function handleChange(e) {
@@ -1635,6 +1684,22 @@
       const p = char[key];
       if (d === null) p.current = p.max;
       else p.current = Math.max(0, Math.min(p.max, p.current + d));
+    });
+  }
+
+  function poolEdit(key) {
+    state.editingPool = key;
+    render();
+  }
+
+  function poolSet(key, v) {
+    const char = currentChar();
+    if (!char || !char[key]) return;
+    const n = parseInt(v, 10);
+    if (isNaN(n)) return;
+    state.editingPool = null;
+    mutate(() => {
+      char[key].current = Math.max(0, Math.min(char[key].max, n));
     });
   }
 
@@ -1682,8 +1747,7 @@
   function newTurn() {
     const char = currentChar();
     if (!char) return;
-    const tr = CALC.trait(char, DATA);
-    if (tr && tr.marathoner) {
+    if (CALC.traits(char, DATA).some(t => t.marathoner)) {
       mutate(() => {
         char.stamina.current = Math.min(char.stamina.max, char.stamina.current + 1);
         char.mana.current = Math.min(char.mana.max, char.mana.current + 1);
@@ -1697,10 +1761,10 @@
   function newDay() {
     const char = currentChar();
     if (!char) return;
-    const tr = CALC.trait(char, DATA);
-    if (!tr || !tr.inspirationDaily) return;
-    mutate(() => { char.inspiration = tr.inspirationDaily; });
-    toast('Новый день: вдохновение обновлено (' + tr.inspirationDaily + ').');
+    const insp = CALC.traits(char, DATA).reduce((s, t) => s || (t.inspirationDaily || 0), 0);
+    if (!insp) return;
+    mutate(() => { char.inspiration = insp; });
+    toast('Новый день: вдохновение обновлено (' + insp + ').');
   }
 
   function nameSet(v) {
@@ -1728,7 +1792,23 @@
   function armorSet(id) {
     mutate(() => {
       const char = currentChar();
-      if (char) char.armor = id ? { id } : null;
+      if (char) char.armor = id ? (id === 'custom' ? { id: 'custom', label: '', ac: 10 } : { id }) : null;
+    });
+  }
+
+  function armorLabelSet(v) {
+    mutate(() => {
+      const char = currentChar();
+      if (char && char.armor && char.armor.id === 'custom') char.armor.label = String(v || '');
+    });
+  }
+
+  function armorAcSet(v) {
+    const n = parseInt(v, 10);
+    if (isNaN(n)) return;
+    mutate(() => {
+      const char = currentChar();
+      if (char && char.armor && char.armor.id === 'custom') char.armor.ac = Math.max(10, Math.min(30, n));
     });
   }
 
@@ -1750,14 +1830,34 @@
   }
 
   function invAdd(btn) {
-    const inp = btn.parentNode.querySelector('[data-action="inv-input"]');
-    const v = inp && inp.value ? String(inp.value).trim() : '';
-    if (!v) return;
-    mutate(() => { currentChar().inventory.push(v); });
+    let root = btn.closest ? btn.closest('.card') : null;
+    if (!root || root === btn) root = (btn.parentNode && btn.parentNode.querySelector) ? btn.parentNode : document;
+    const q = (sel) => {
+      const n = root.querySelector(sel);
+      return n ? String(n.value || '') : '';
+    };
+    const name = q('[data-action="inv-name"]').trim();
+    if (!name) return;
+    const qty = Math.max(0, parseInt(q('[data-action="inv-qty"]'), 10) || 1);
+    const weight = Math.max(0, parseFloat(q('[data-action="inv-weight"]')) || 0);
+    const desc = q('[data-action="inv-desc"]');
+    mutate(() => { currentChar().inventory.push({ name, desc, qty, weight }); });
   }
 
   function invDel(i) {
     mutate(() => { currentChar().inventory.splice(i, 1); });
+  }
+
+  function invSet(i, field, v) {
+    const char = currentChar();
+    if (!char || !char.inventory[i]) return;
+    mutate(() => {
+      const it = char.inventory[i];
+      if (typeof it === 'string') return;
+      if (field === 'qty') it.qty = Math.max(0, parseInt(v, 10) || 0);
+      else if (field === 'weight') it.weight = Math.max(0, parseFloat(v) || 0);
+      else it[field] = String(v == null ? '' : v);
+    });
   }
 
   function levelUp() {
@@ -1792,10 +1892,12 @@
     const dieSize = race ? race.hitDie : 0;
     const dieVal = levelUpState.hpMode === 'avg' ? CALC.avgDie(dieSize) : levelUpState.roll;
     const hpGain = dieVal != null ? dieVal + conMod * conMult : null;
-    const t = CALC.trait(char, DATA);
+    const ts = CALC.traits(char, DATA);
     const traitNotes = [];
-    if (t && t.osEvery3Levels && newLevel % 3 === 0) traitNotes.push('«Приспосабливаемый»: +1 ОС за третий уровень');
-    if (t && t.osPerLevel) traitNotes.push('«Тупой»: −1 ОС');
+    ts.forEach(t => {
+      if (t.osEvery3Levels && newLevel % 3 === 0) traitNotes.push('«' + t.name + '»: +' + t.osEvery3Levels + ' ОС за третий уровень');
+      if (t.osPerLevel) traitNotes.push('«' + t.name + '»: ' + (t.osPerLevel > 0 ? '+' : '') + t.osPerLevel + ' ОС');
+    });
     const over15 = newLevel > 15;
     const gain = levelUpGain();
     const left = gain - levelUpState.spent;
@@ -2012,15 +2114,28 @@
   function traitRoll() {
     mutate(() => {
       const n = 1 + Math.floor(Math.random() * 20);
-      state.wizard.draft.traitId = 't' + n;
-      state.wizard.draft.traitRolled = true;
+      const id = 't' + n;
+      const d = state.wizard.draft;
+      if (d.traits.indexOf(id) === -1) d.traits.push(id);
+      d.traitRolled = true;
     });
   }
 
   function traitSkip() {
     mutate(() => {
-      state.wizard.draft.traitId = null;
-      state.wizard.draft.traitRolled = true;
+      const d = state.wizard.draft;
+      d.traits.length = 0;
+      d.traitRolled = true;
+    });
+  }
+
+  function traitPick(id) {
+    mutate(() => {
+      const d = state.wizard.draft;
+      const i = d.traits.indexOf(id);
+      if (i !== -1) d.traits.splice(i, 1);
+      else d.traits.push(id);
+      d.traitRolled = true;
     });
   }
 
@@ -2049,6 +2164,7 @@
     app.onclick = handleClick;
     app.oninput = handleInput;
     app.onchange = handleChange;
+    app.onblur = handleBlur;
     if (state.screen === 'select') renderSelect(app);
     else if (state.screen === 'wizard') renderWizard(app);
     else if (state.screen === 'sheet') renderSheet(app);
