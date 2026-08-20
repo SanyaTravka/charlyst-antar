@@ -2959,8 +2959,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
         if (!a || !a.name) continue;
         const spec = DATA.specializations[a.specId];
         const specName = (spec && spec.name) || a.specId;
-        const meta = ['Тир ' + a.tier, a.type].filter(Boolean).join(' · ');
-        const body = [meta, a.cost ? 'Затрата: ' + a.cost : '', a.components ? 'Компоненты: ' + a.components : '', a.desc || ''].filter(Boolean).join('\n');
+        const body = [abilityMeta(a).join(' · '), a.desc || ''].filter(Boolean).join('\n');
         html += itemHtml(a.name + ' (' + specName + ')', body);
       }
     }

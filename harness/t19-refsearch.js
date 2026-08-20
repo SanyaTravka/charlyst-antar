@@ -123,6 +123,7 @@ input('ref-search', 'огнен');
 m = markup();
 ok(m.includes('Огненная стрела'), 'search finds ability by name');
 ok(m.includes('Проявление'), 'spec name shown alongside ability');
+ok(m.includes('Затрата: 2 маны') && !m.includes('[object Object]'), 'cost formatted with mana label');
 
 input('ref-search', 'сушенные');
 m = markup();
