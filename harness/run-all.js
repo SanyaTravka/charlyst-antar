@@ -2,7 +2,7 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const FILES = ['t11-sheet.js', 't12-tracker.js', 't13-specs.js', 't14-spells.js', 't15-refbook.js', 't16-levelup.js', 'wizard.js', 'race-change.js'];
+const FILES = ['t11-sheet.js', 't12-tracker.js', 't13-specs.js', 't14-spells.js', 't15-refbook.js', 't16-levelup.js', 't17-learned.js', 'wizard.js', 'race-change.js'];
 const ROOT = path.join(__dirname, '..');
 
 let fails = 0;

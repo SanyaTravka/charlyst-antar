@@ -2676,6 +2676,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     page.appendChild(trackerBlock(char));
     page.appendChild(tabBar());
     if (state.tab === 'specs') renderSpecs(page, char);
+    else if (state.tab === 'learned') renderLearned(page, char);
     else if (state.tab === 'refbook') renderRefbook(page);
     else if (state.tab === 'inventory') renderInventory(page, char);
     else if (state.tab === 'notes') renderNotes(page, char);
@@ -2977,7 +2978,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   }
 
   function tabBar() {
-    const tabs = [['overview', 'Обзор'], ['inventory', 'Инвентарь'], ['specs', 'Специализации'], ['refbook', 'Справочник'], ['notes', 'Заметки']];
+    const tabs = [['overview', 'Обзор'], ['inventory', 'Инвентарь'], ['specs', 'Специализации'], ['learned', 'Изученные способности'], ['refbook', 'Справочник'], ['notes', 'Заметки']];
     return el(`
       <div class="tabs">
         ${tabs.map(([id, name]) => `<button class="tab${state.tab === id ? ' active' : ''}" data-action="tab" data-id="${id}">${esc(name)}</button>`).join('')}
@@ -3095,17 +3096,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     if (!list.length) {
       box.appendChild(el('<p class="small muted">Своих способностей пока нет.</p>'));
     }
-    list.forEach((a, i) => {
-      const fullIdx = char.customAbilities.indexOf(a);
-      box.appendChild(el(`
-        <div class="card" style="margin:0.5rem 0;">
-          <div class="row between">
-            <strong>${esc(a.name)} <span class="muted small">Тир ${esc(a.tier)} · ${esc(a.type === 'passive' ? 'пассивная' : 'активная')} · ${esc(a.cost)}</span></strong>
-            <button class="btn btn-danger" data-action="custom-del" data-id="${fullIdx}">Убрать</button>
-          </div>
-          ${a.desc ? `<p class="small muted" style="margin:0.35rem 0 0;">${esc(a.desc)}</p>` : ''}
-        </div>
-      `));
+    list.forEach(a => {
+      box.appendChild(customAbilityCard(a, char.customAbilities.indexOf(a)));
     });
     box.appendChild(el(`
       <div class="custom-form">
@@ -3132,6 +3124,47 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
       </div>
     `));
     return box;
+  }
+
+  function customAbilityCard(a, fullIdx, label) {
+    return el(`
+      <div class="card" style="margin:0.5rem 0;">
+        <div class="row between">
+          <strong>${esc(a.name)} <span class="muted small">Тир ${esc(a.tier)} · ${esc(a.type === 'passive' ? 'пассивная' : 'активная')} · ${esc(a.cost)}</span></strong>
+          <button class="btn btn-danger" data-action="custom-del" data-id="${fullIdx}">${esc(label || 'Отдать')}</button>
+        </div>
+        ${a.desc ? `<p class="small muted" style="margin:0.35rem 0 0;">${esc(a.desc)}</p>` : ''}
+      </div>
+    `);
+  }
+
+  function renderLearned(container, char) {
+    const total = CALC.totalOS(char, DATA);
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.75rem;">
+        <h3 style="margin:0;">Изученные способности</h3>
+        <span class="muted">ОС: ${char.spentOS} / ${total}</span>
+      </div>
+    `));
+    let shown = 0;
+    for (const sid of char.specializations) {
+      const spec = DATA.specializations[sid];
+      if (!spec) continue;
+      const learned = char.abilities.filter(id => {
+        const ab = DATA.allAbilities[id];
+        return ab && ab.specId === sid;
+      });
+      const customs = char.customAbilities.filter(a => a.specId === sid);
+      if (!learned.length && !customs.length) continue;
+      const card = el(`<details class="card" style="margin-bottom:1rem;" open><summary style="cursor:pointer;font-weight:700;">${esc(spec.name)} <span class="muted small">${learned.length + customs.length} шт.</span></summary></details>`);
+      for (const id of learned) card.appendChild(abilityCard(char, id));
+      for (const a of customs) card.appendChild(customAbilityCard(a, char.customAbilities.indexOf(a)));
+      container.appendChild(card);
+      shown++;
+    }
+    if (!shown) {
+      container.appendChild(el('<p class="small muted">Пока не изучено ни одной способности — возьмите их на вкладке «Специализации».</p>'));
+    }
   }
 
   function osBonusesBlock(char) {
