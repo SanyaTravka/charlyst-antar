@@ -868,6 +868,17 @@
       const s = DATA.specializations[id];
       html += itemHtml(s.name + (s.somatic ? ' (телесная)' : ' (приобретённая)') + (s.empty ? ' — ждём редакций' : ''), s.desc || '');
     }
+    if (q) {
+      for (const id in DATA.allAbilities) {
+        const a = DATA.allAbilities[id];
+        if (!a || !a.name) continue;
+        const spec = DATA.specializations[a.specId];
+        const specName = (spec && spec.name) || a.specId;
+        const meta = ['Тир ' + a.tier, a.type].filter(Boolean).join(' · ');
+        const body = [meta, a.cost ? 'Затрата: ' + a.cost : '', a.components ? 'Компоненты: ' + a.components : '', a.desc || ''].filter(Boolean).join('\n');
+        html += itemHtml(a.name + ' (' + specName + ')', body);
+      }
+    }
     if (q && !html) html = '<p class="small muted">Ничего не найдено.</p>';
     container.appendChild(section('Специализации (' + Object.keys(DATA.specializations).length + ')', html));
   }
