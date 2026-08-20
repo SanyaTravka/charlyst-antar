@@ -17,6 +17,16 @@
   let lastDice = null;
   let notesTimer = null;
 
+  let theme = 'light';
+  try { theme = globalThis.localStorage.getItem('antar-theme') === 'dark' ? 'dark' : 'light'; } catch (e) {}
+
+  function applyTheme() {
+    const root = document.documentElement || document.body;
+    if (!root) return;
+    if (theme === 'dark') root.setAttribute('data-theme', 'dark');
+    else if (root.removeAttribute) root.removeAttribute('data-theme');
+  }
+
   function el(html) {
     const t = document.createElement('template');
     t.innerHTML = html.trim();
@@ -151,6 +161,7 @@
     const btns = [];
     if (state.screen !== 'select') btns.push('<button class="btn" data-action="list">← К списку</button>');
     if (currentChar()) btns.push('<button class="btn" data-action="export">Экспорт</button>');
+    btns.push(`<button class="btn" data-action="theme-toggle">${theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}</button>`);
     return el(`
       <header class="topbar">
         <h1>Чарлист Антар</h1>
@@ -1487,6 +1498,12 @@
     const id = t.getAttribute('data-id');
     if (action === 'new') newChar();
     else if (action === 'list') goto('select');
+    else if (action === 'theme-toggle') {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      try { globalThis.localStorage.setItem('antar-theme', theme); } catch (err) {}
+      applyTheme();
+      render();
+    }
     else if (action === 'open') selectChar(id);
     else if (action === 'export') exportChar(id);
     else if (action === 'delete') deleteChar(id);
@@ -2113,6 +2130,8 @@
   }
 
   render();
+
+  applyTheme();
 
   window.APP = { DATA, state, el, currentChar, mutate, save, toast, goto, render, esc, selectChar, deleteChar, exportChar, importChar, newChar, calcFull, tabSet, createChar };
 })();
