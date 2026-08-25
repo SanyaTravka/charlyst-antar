@@ -3350,7 +3350,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
               <select class="field" data-action="skill-attr" data-id="${esc(catId)}">
                 ${(sk.attrs || []).map(a => `<option value="${esc(a)}"${a === curAttr ? ' selected' : ''}>${esc(a)}</option>`).join('')}
               </select>
-              <button class="btn" data-action="skill-trained" data-id="${esc(catId)}"${trained ? ' style="border:2px solid var(--success);color:var(--success);font-weight:700;"' : ' style="opacity:0.7;"'}>${trained ? 'Изучен' : 'Не изучен'}</button>
+              <button class="btn" data-action="skill-trained" data-id="${esc(catId)}"${trained ? ' style="border:2px solid var(--success);background:var(--success);color:var(--field-bg);font-weight:700;"' : ' style="opacity:0.7;"'}>${trained ? 'Изучен' : 'Не изучен'}</button>
               <button class="btn" data-action="skill-roll" data-id="${esc(catId)}">Бросок</button>
             </div>
           </div>
