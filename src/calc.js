@@ -180,6 +180,20 @@ const t = traits(char, DATA);
     return w;
   }
 
-  return { ATTRS, mod, defaults, race, status, traitIds, traits, hasTrait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie, inventoryWeight };
+  function parseDamage(s) {
+    const str = String(s == null ? '' : s);
+    const dm = str.match(/(\d+)\s*[dд]\s*(\d+)/i);
+    if (!dm) return null;
+    const rest = str.replace(/(\d+)\s*[dд]\s*(\d+)/gi, ' ');
+    const fm = rest.match(/-?\d+/);
+    return {
+      dice: parseInt(dm[1], 10),
+      sides: parseInt(dm[2], 10),
+      flat: fm ? parseInt(fm[0], 10) : 0,
+      mod: /мод\.?\s*силы/i.test(str),
+    };
+  }
+
+  return { ATTRS, mod, defaults, race, status, traitIds, traits, hasTrait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie, inventoryWeight, parseDamage };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = { CALC };

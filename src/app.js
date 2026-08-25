@@ -1357,11 +1357,63 @@
           <p class="small muted" style="margin:0.35rem 0 0;">Свойства: ${base.props ? esc(base.props) : '—'}</p>
           <p class="small muted" style="margin:0.35rem 0 0;">Досягаемость: ${esc(base.reach || '—')}</p>
           <p class="small" style="margin:0.35rem 0 0;">Урон: ${esc(base.damage || '—')}${aggressive ? ' · ×2 куба (Агрессивный)' : ''}</p>
+          <div class="row" style="margin-top:0.45rem;flex-wrap:wrap;">
+            <button class="btn" data-action="wpn-atk" data-id="${i}">Атака</button>
+            <button class="btn" data-action="wpn-dmg" data-id="${i}">Урон</button>
+            <span class="small muted">d20 + мод.Силы + уровневый бонус</span>
+          </div>
         </div>
       `));
     });
     box.appendChild(el(`<div class="row"><button class="btn" data-action="weapon-add">Добавить оружие</button></div>`));
     return box;
+  }
+
+  function weaponAttack(i) {
+    const char = currentChar();
+    const w = char && char.weapons[i];
+    if (!char || !w) return;
+    const base = weaponBase(w);
+    const name = base.name || w.name || 'Оружие';
+    const mv = CALC.mods(char, DATA)['сила'] || 0;
+    const mb = char.masteryBonus || 0;
+    const wb = parseInt(base.atkBonus, 10) || 0;
+    const n = 1 + Math.floor(Math.random() * 20);
+    lastDice = { desc: 'атака «' + name + '»', roll: n, mod: mv + mb + wb };
+    const terms = [String(n), (mv >= 0 ? '+' : '') + mv, String(mb)];
+    if (wb !== 0) terms.push((wb > 0 ? '+' : '') + wb);
+    showRoll(
+      { label: 'атака: ' + name, expr: terms.join(' + '), total: n + mv + mb + wb },
+      'Атака (' + esc(name) + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb + wb)
+    );
+  }
+
+  function weaponDamage(i) {
+    const char = currentChar();
+    const w = char && char.weapons[i];
+    if (!char || !w) return;
+    const base = weaponBase(w);
+    const name = base.name || w.name || 'Оружие';
+    const p = CALC.parseDamage(base.damage);
+    if (!p) { toast('Не удалось распознать кость урона («' + esc(name) + '»)', 'error'); return; }
+    let dice = p.dice;
+    const doubled = CALC.hasTrait(char, DATA, 't7');
+    if (doubled) dice *= 2;
+    const vals = [];
+    for (let k = 0; k < dice; k++) vals.push(1 + Math.floor(Math.random() * p.sides));
+    const sum = vals.reduce((a, b) => a + b, 0);
+    const smod = p.mod ? (CALC.mods(char, DATA)['сила'] || 0) : 0;
+    const total = (p.flat || 0) + sum + smod;
+    const terms = [];
+    if (p.flat) terms.push(String(p.flat));
+    terms.push(...vals.map(String));
+    if (smod !== 0) terms.push(String(smod));
+    const expr = terms.join('+');
+    const formula = dice + 'd' + p.sides;
+    showRoll(
+      { label: 'урон: ' + name, expr, total },
+      'Урон (' + esc(name) + '): ' + expr + ' = ' + total + ' (' + formula + ': ' + vals.join(', ') + ')' + (doubled ? ' ×2 куба' : '')
+    );
   }
 
   function weaponModal() {
@@ -1705,6 +1757,8 @@
     else if (action === 'weapon-stock') weaponStock(id);
     else if (action === 'weapon-del') weaponDel(parseInt(id, 10));
     else if (action === 'weapon-custom') weaponCustom(t);
+    else if (action === 'wpn-atk') weaponAttack(parseInt(id, 10));
+    else if (action === 'wpn-dmg') weaponDamage(parseInt(id, 10));
     else if (action === 'inv-add') invAdd(t);
     else if (action === 'inv-del') invDel(parseInt(id, 10));
     else if (action === 'dice') diceRoll(id);
