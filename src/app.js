@@ -85,13 +85,15 @@
         <button class="btn btn-danger" data-action="rolllog-clear">Очистить</button>
       </div>
     `));
+    const list = el('<div style="height:200px;overflow-y:auto;"></div>');
     for (const r of state.rollLog) {
-      card.appendChild(el(`
+      list.appendChild(el(`
         <div class="small" style="padding:0.25rem 0;border-bottom:1px solid var(--border);">
           <span class="muted">${fmtTime(r.t)}</span> · ${esc(r.label)} — ${esc(r.expr)} = <strong>${esc(r.total)}</strong>
         </div>
       `));
     }
+    card.appendChild(list);
     return card;
   }
 

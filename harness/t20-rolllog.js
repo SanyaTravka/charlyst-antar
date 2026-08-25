@@ -128,6 +128,7 @@ ok(APP.state.rollLog[0].label === 'инициатива', 'entry label is ини
 ok(APP.state.rollLog[0].total === 15, 'entry total 11 d20 + 4 speed');
 m = markup();
 ok(m.includes('инициатива') && m.includes('= 15'), 'log line rendered with total');
+ok(m.includes('height:200px;overflow-y:auto'), 'entries live in fixed-height scroll container');
 
 // single die logs
 click('dice', 'd6');
