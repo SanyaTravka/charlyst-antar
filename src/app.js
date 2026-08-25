@@ -4,7 +4,7 @@
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {} };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {} };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -594,6 +594,8 @@
     const c = STORE.normalize(d);
     c.id = STORE.newId();
     c.createdAt = c.updatedAt = Date.now();
+    const st0 = CALC.status(c, DATA);
+    if (st0) ['skills', 'lores', 'crafts'].forEach(cat => (st0[cat] || []).forEach(sid => { c.trained[cat][sid] = true; }));
     delete c.potentialRolled;
     delete c.potentialPoints;
     delete c.potentialTo;
@@ -669,6 +671,7 @@
     page.appendChild(tabBar());
     if (state.tab === 'specs') renderSpecs(page, char);
     else if (state.tab === 'learned') renderLearned(page, char);
+    else if (state.tab === 'skills') renderSkills(page, char);
     else if (state.tab === 'refbook') renderRefbook(page);
     else if (state.tab === 'inventory') renderInventory(page, char);
     else if (state.tab === 'notes') renderNotes(page, char);
@@ -984,7 +987,7 @@
   }
 
   function tabBar() {
-    const tabs = [['overview', 'Обзор'], ['inventory', 'Инвентарь'], ['specs', 'Специализации'], ['learned', 'Изученные способности'], ['refbook', 'Справочник'], ['notes', 'Заметки']];
+    const tabs = [['overview', 'Обзор'], ['inventory', 'Инвентарь'], ['specs', 'Специализации'], ['learned', 'Изученные способности'], ['skills', 'Навыки'], ['refbook', 'Справочник'], ['notes', 'Заметки']];
     return el(`
       <div class="tabs">
         ${tabs.map(([id, name]) => `<button class="tab${state.tab === id ? ' active' : ''}" data-action="tab" data-id="${id}">${esc(name)}</button>`).join('')}
@@ -1219,6 +1222,74 @@
     if (!shown) {
       container.appendChild(el('<p class="small muted">Пока не изучено ни одной способности — возьмите их на вкладке «Специализации».</p>'));
     }
+  }
+
+  function renderSkills(container, char) {
+    container.appendChild(el(`
+      <div class="row between" style="margin-bottom:0.75rem;flex-wrap:wrap;gap:0.35rem;">
+        <h3 style="margin:0;">Навыки</h3>
+        <span class="muted small">d20 + мод характеристики · изученные добавляют уровневый бонус (${esc(char.masteryBonus || 0)})</span>
+      </div>
+    `));
+    const cats = [['skills', 'Навыки', DATA.skills], ['lores', 'Знания', DATA.lores], ['crafts', 'Ремёсла', DATA.crafts]];
+    for (const [key, title, data] of cats) {
+      const ids = Object.keys(data || {});
+      const body = el('<div></div>');
+      for (const id of ids) {
+        const sk = data[id];
+        const catId = key + ':' + id;
+        const curAttr = state.skillAttrs[catId] || (sk.attrs && sk.attrs[0]) || CALC.ATTRS[0];
+        const trained = !!(char.trained[key] && char.trained[key][id]);
+        body.appendChild(el(`
+          <div class="row between" style="padding:0.3rem 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:0.35rem;">
+            <strong>${esc(sk.name)}</strong>
+            <div class="row">
+              <select class="field" data-action="skill-attr" data-id="${esc(catId)}">
+                ${(sk.attrs || []).map(a => `<option value="${esc(a)}"${a === curAttr ? ' selected' : ''}>${esc(a)}</option>`).join('')}
+              </select>
+              <button class="btn" data-action="skill-trained" data-id="${esc(catId)}"${trained ? ' style="border:2px solid var(--accent)"' : ''}>изучен</button>
+              <button class="btn" data-action="skill-roll" data-id="${esc(catId)}">Бросок</button>
+            </div>
+          </div>
+        `));
+      }
+      container.appendChild(section(title + ' (' + ids.length + ')', body, true));
+    }
+  }
+
+  function skillEntry(catId) {
+    const i = catId.indexOf(':');
+    return [catId.slice(0, i), catId.slice(i + 1)];
+  }
+
+  function skillTrainedToggle(catId) {
+    const [cat, id] = skillEntry(catId);
+    mutate(() => {
+      const c = currentChar();
+      if (!c) return;
+      c.trained[cat] = c.trained[cat] || {};
+      c.trained[cat][id] = !c.trained[cat][id];
+    });
+  }
+
+  function skillRoll(catId) {
+    const char = currentChar();
+    if (!char) return;
+    const [cat, id] = skillEntry(catId);
+    const sk = (DATA[cat] || {})[id];
+    if (!sk) return;
+    const attr = state.skillAttrs[catId] || (sk.attrs && sk.attrs[0]) || CALC.ATTRS[0];
+    const mv = CALC.mods(char, DATA)[attr] || 0;
+    const trained = !!(char.trained[cat] && char.trained[cat][id]);
+    const mb = trained ? (char.masteryBonus || 0) : 0;
+    const n = 1 + Math.floor(Math.random() * 20);
+    lastDice = { desc: 'навык «' + sk.name + '»', roll: n, mod: mv + mb };
+    const terms = [String(n), (mv >= 0 ? '+' : '') + mv];
+    if (trained) terms.push(String(mb));
+    showRoll(
+      { label: 'навык «' + sk.name + '» (' + attr + ')', expr: terms.join(' + '), total: n + mv + mb },
+      esc(sk.name) + ' (' + esc(attr) + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb)
+    );
   }
 
   function osBonusesBlock(char) {
@@ -1877,6 +1948,8 @@
     else if (action === 'ab-buy') buyAbility(currentChar(), id);
     else if (action === 'ab-sell') sellAbility(currentChar(), id);
     else if (action === 'ab-roll') abilityRoll(id);
+    else if (action === 'skill-trained') skillTrainedToggle(id);
+    else if (action === 'skill-roll') skillRoll(id);
     else if (action === 'custom-add') addCustomAbility(currentChar(), id, t);
     else if (action === 'custom-del') removeCustomAbility(currentChar(), parseInt(id, 10));
     else if (action === 'os-plus') osBonusChar(currentChar(), id, 1);
@@ -1928,6 +2001,7 @@
     else if (action === 'shield-set') shieldSet(t.value);
     else if (action === 'injury-set') injurySet(t.getAttribute('data-id'), t.checked);
     else if (action === 'ab-attr') abAttrSet(t.getAttribute('data-id'), t.value);
+    else if (action === 'skill-attr') { state.skillAttrs[t.getAttribute('data-id')] = String(t.value || ''); render(); }
   }
 
   function injurySet(k, on) {
