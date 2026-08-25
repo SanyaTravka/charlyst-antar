@@ -1359,10 +1359,11 @@
           <p class="small muted" style="margin:0.35rem 0 0;">Свойства: ${base.props ? esc(base.props) : '—'}</p>
           <p class="small muted" style="margin:0.35rem 0 0;">Досягаемость: ${esc(base.reach || '—')}</p>
           <p class="small" style="margin:0.35rem 0 0;">Урон: ${esc(base.damage || '—')}${aggressive ? ' · ×2 куба (Агрессивный)' : ''}</p>
+          ${base.atkBonus ? `<p class="small muted" style="margin:0.35rem 0 0;">Бонус к попаданию: ${base.atkBonus > 0 ? '+' : ''}${esc(base.atkBonus)}</p>` : ''}
           <div class="row" style="margin-top:0.45rem;flex-wrap:wrap;">
             <button class="btn" data-action="wpn-atk" data-id="${i}">Атака</button>
             <button class="btn" data-action="wpn-dmg" data-id="${i}">Урон</button>
-            <span class="small muted">d20 + мод.Силы + уровневый бонус</span>
+            <span class="small muted">d20 + мод.Ловкости + уровневый бонус</span>
           </div>
         </div>
       `));
@@ -1377,7 +1378,7 @@
     if (!char || !w) return;
     const base = weaponBase(w);
     const name = base.name || w.name || 'Оружие';
-    const mv = CALC.mods(char, DATA)['сила'] || 0;
+    const mv = CALC.mods(char, DATA)['ловкость'] || 0;
     const mb = char.masteryBonus || 0;
     const wb = parseInt(base.atkBonus, 10) || 0;
     const n = 1 + Math.floor(Math.random() * 20);
@@ -1437,6 +1438,7 @@
             <input class="field" placeholder="Название" data-action="wc-name">
             <input class="field" placeholder="Тип" data-action="wc-kind">
             <input class="field" type="number" min="1" max="10" placeholder="Атак/ход" data-action="wc-speed">
+            <input class="field" type="number" step="1" placeholder="Бонус к попаданию (+N)" data-action="wc-atkbonus">
             <input class="field" placeholder="Свойства" data-action="wc-props">
             <input class="field" placeholder="Досягаемость" data-action="wc-reach">
             <input class="field" placeholder="Урон" data-action="wc-damage">
@@ -1457,6 +1459,7 @@
     };
     const name = val('wc-name');
     if (!name) { toast('Укажите название оружия', 'error'); return; }
+    const atkRaw = parseInt(val('wc-atkbonus'), 10);
     mutate(() => {
       currentChar().weapons.push({
         name,
@@ -1465,6 +1468,7 @@
         props: val('wc-props'),
         reach: val('wc-reach'),
         damage: val('wc-damage'),
+        atkBonus: isNaN(atkRaw) ? 0 : atkRaw,
       });
     });
     weaponModalOpen = false;

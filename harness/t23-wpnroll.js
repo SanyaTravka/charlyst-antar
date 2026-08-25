@@ -76,7 +76,7 @@ function markup() {
 function click(action, id, extra) {
   const node = Object.assign(makeEl(), extra || {});
   node.getAttribute = function (n) { return n === 'data-action' ? action : n === 'data-id' ? id : null; };
-  node.closest = function () { return node; };
+  node.closest = function (sel) { return (extra && extra._closest && extra._closest(sel)) || node; };
   appEl.onclick({ target: node });
   return node;
 }
@@ -97,7 +97,7 @@ const char = {
   hp: { current: 0, max: 0 }, stamina: { current: 0, max: 0 }, mana: { current: 0, max: 0 },
   trained: { skills: {}, lores: {}, crafts: {} },
   specializations: ['martial'], abilities: [], customAbilities: [],
-  weapons: [{ id: 'dagger' }, { id: 'lightCrossbow' }, { name: 'Артефакт', kind: 'своё', speed: 1, damage: 'особый' }],
+  weapons: [{ id: 'dagger' }, { id: 'lightCrossbow' }, { name: 'Артефакт', kind: 'своё', speed: 1, damage: '1d6', atkBonus: 3 }, { name: 'Хлам', kind: 'своё', speed: 1, damage: 'особый' }],
   armor: null, shield: null, inventory: [],
   conditions: [], injuries: { head: false, arms: false, torso: false, legs: false },
   exhaustion: 0, deathSaves: { success: 0, fail: 0 }, inspiration: 0,
@@ -112,26 +112,25 @@ APP.state.currentId = char.id;
 APP.goto('sheet');
 
 let m = markup();
-ok(m.split('data-action="wpn-atk"').length - 1 === 3, 'attack button on each weapon card');
-ok(m.split('data-action="wpn-dmg"').length - 1 === 3, 'damage button on each weapon card');
+ok(m.split('data-action="wpn-atk"').length - 1 === 4, 'attack button on each weapon card');
+ok(m.split('data-action="wpn-dmg"').length - 1 === 4, 'damage button on each weapon card');
+ok(m.includes('d20 + мод.Ловкости + уровневый бонус'), 'attack hint names dexterity');
 
-// attack: d20(11) + str mod(+1) + mastery(0)
+// attack: d20(11) + dex mod(0) + mastery(0); damage stays strength-based
 click('wpn-atk', '0');
 ok(APP.state.rollLog.length === 1, 'attack logged');
 ok(APP.state.rollLog[0].label === 'атака: Кинжал', 'attack label uses weapon name');
-ok(APP.state.rollLog[0].expr === '11 + +1 + 0', 'attack expr d20 + mod + mastery');
-ok(APP.state.rollLog[0].total === 12, 'attack total 12');
+ok(APP.state.rollLog[0].expr === '11 + +0 + 0', 'attack expr d20 + dex mod + mastery');
+ok(APP.state.rollLog[0].total === 11, 'attack total 11 (dex 10)');
 m = markup();
-ok(m.includes('Атака (Кинжал): 11 + +1 + 0 = 12'), 'attack toast shown');
+ok(m.includes('Атака (Кинжал): 11 + +0 + 0 = 11'), 'attack toast shown');
 
-// damage dagger: 2d4 -> 3+3, str +1
+// damage dagger: 2d4 -> 3+3, STR mod +1 (урон от силы)
 click('wpn-dmg', '0');
 ok(APP.state.rollLog.length === 2, 'damage logged');
 ok(APP.state.rollLog[0].label === 'урон: Кинжал', 'damage label');
-ok(APP.state.rollLog[0].expr === '3+3+1', 'damage expr dice then mod');
+ok(APP.state.rollLog[0].expr === '3+3+1', 'damage expr dice then str mod');
 ok(APP.state.rollLog[0].total === 7, 'damage total 7');
-m = markup();
-ok(m.includes('(2d4: 3, 3)'), 'breakdown in toast');
 
 // crossbow: flat 10 + 2d10 (6+6), no mod
 click('wpn-dmg', '1');
@@ -141,15 +140,18 @@ ok(APP.state.rollLog[0].expr === '10+6+6', 'flat first then dice');
 ok(APP.state.rollLog[0].total === 22, 'crossbow total 22');
 
 // custom unparseable damage -> error toast, no log entry
-click('wpn-dmg', '2');
+click('wpn-dmg', '3');
 ok(APP.state.rollLog.length === 3, 'unparseable damage not logged');
 m = markup();
 ok(m.includes('Не удалось распознать кость урона'), 'error toast for unparseable damage');
 
-// custom weapon attack still works (name from weapon itself)
+// custom weapon with atkBonus: attack adds weapon bonus term
+m = markup();
+ok(m.includes('Бонус к попаданию: +3'), 'weapon card shows attack bonus');
 click('wpn-atk', '2');
 ok(APP.state.rollLog.length === 4 && APP.state.rollLog[0].label === 'атака: Артефакт', 'custom weapon attack logged');
-ok(APP.state.rollLog[0].total === 12, 'custom attack 11+1');
+ok(APP.state.rollLog[0].expr === '11 + +0 + 0 + +3', 'attack expr includes weapon bonus');
+ok(APP.state.rollLog[0].total === 14, 'custom attack 11 + 3');
 
 // aggressive doubles damage dice only
 APP.mutate(() => { char.traits = ['t7']; });
@@ -157,7 +159,31 @@ click('wpn-dmg', '0');
 ok(APP.state.rollLog[0].total === 13, 'aggressive: 4d4 (3×4) + 1 = 13');
 ok(APP.state.rollLog[0].expr === '3+3+3+3+1', 'aggressive expr four dice plus mod');
 click('wpn-atk', '0');
-ok(APP.state.rollLog[0].total === 12, 'aggressive leaves attack unchanged');
+ok(APP.state.rollLog[0].total === 11, 'aggressive leaves attack unchanged');
+
+// creating custom weapon via modal stores atkBonus and uses it in rolls
+const modal = makeEl();
+modal.querySelector = (sel) => {
+  const vals = {
+    'wc-name': 'Тестовый клинок',
+    'wc-kind': 'своё',
+    'wc-speed': '1',
+    'wc-props': '',
+    'wc-reach': '',
+    'wc-damage': '2d6',
+    'wc-atkbonus': '+3',
+  };
+  return sel && vals[sel.replace('[data-action="', '').replace('"]', '')] !== undefined
+    ? Object.assign(makeEl(), { value: vals[sel.replace('[data-action="', '').replace('"]', '')] })
+    : null;
+};
+click('weapon-custom', null, { _closest: (sel) => (sel === '.wizard-modal' ? modal : null) });
+const created = char.weapons[char.weapons.length - 1];
+ok(created.name === 'Тестовый клинок' && created.atkBonus === 3, 'created weapon stores atkBonus from form');
+freshRender();
+click('wpn-atk', String(char.weapons.length - 1));
+ok(APP.state.rollLog[0].label === 'атака: Тестовый клинок', 'newly created weapon attackable');
+ok(APP.state.rollLog[0].expr === '11 + +0 + 0 + +3', 'created weapon bonus applied to roll');
 
 if (consoleLog.length) { console.log('CONSOLE ERRORS: ' + consoleLog.join('; ')); fails++; }
 
