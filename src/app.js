@@ -4,7 +4,7 @@
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {} };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -53,6 +53,46 @@
     box.appendChild(t);
     toasts.push(t);
     setTimeout(() => { t.remove(); }, 2500);
+  }
+
+  function fmtTime(t) {
+    const d = new Date(t);
+    const p = n => String(n).padStart(2, '0');
+    return p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function logRoll(entry) {
+    entry.t = Date.now();
+    state.rollLog.unshift(entry);
+    if (state.rollLog.length > 20) state.rollLog.length = 20;
+  }
+
+  function showRoll(entry, msg, type) {
+    logRoll(entry);
+    render();
+    toast(msg, type);
+  }
+
+  function renderRollLog() {
+    const card = el(`<details class="card" style="margin-bottom:1rem;"${state.rollLogOpen ? ' open' : ''}><summary data-action="rolllog-toggle" style="cursor:pointer;font-weight:700;">Журнал бросков</summary></details>`);
+    if (!state.rollLog.length) {
+      card.appendChild(el('<p class="small muted">Журнал пуст.</p>'));
+      return card;
+    }
+    card.appendChild(el(`
+      <div class="row between" style="margin:0.35rem 0;">
+        <span class="small muted">Последние ${state.rollLog.length} (от новых к старым)</span>
+        <button class="btn btn-danger" data-action="rolllog-clear">Очистить</button>
+      </div>
+    `));
+    for (const r of state.rollLog) {
+      card.appendChild(el(`
+        <div class="small" style="padding:0.25rem 0;border-bottom:1px solid var(--border);">
+          <span class="muted">${fmtTime(r.t)}</span> · ${esc(r.label)} — ${esc(r.expr)} = <strong>${esc(r.total)}</strong>
+        </div>
+      `));
+    }
+    return card;
   }
 
   function esc(s) {
@@ -620,6 +660,7 @@
     }
     page.appendChild(sheetHeader(char));
     page.appendChild(trackerBlock(char));
+    page.appendChild(renderRollLog());
     page.appendChild(tabBar());
     if (state.tab === 'specs') renderSpecs(page, char);
     else if (state.tab === 'learned') renderLearned(page, char);
@@ -1463,19 +1504,23 @@
     const sides = parseInt(key.slice(1), 10) || 20;
     const n = 1 + Math.floor(Math.random() * sides);
     lastDice = { desc: key, roll: n, mod: 0 };
-    toast('Кость ' + key + ': ' + n);
+    showRoll({ label: key, expr: String(n), total: n }, 'Кость ' + key + ': ' + n);
   }
 
   function checkRoll(btn) {
     const char = currentChar();
     if (!char) return;
-    const sel = btn.parentNode.querySelector('[data-action="check-attr"]');
+    const scope = btn && btn.parentNode && btn.parentNode.querySelector ? btn.parentNode : null;
+    const sel = scope ? scope.querySelector('[data-action="check-attr"]') : null;
     const attr = sel && sel.value ? sel.value : CALC.ATTRS[0];
     const mv = CALC.mods(char, DATA)[attr] || 0;
     const mb = char.masteryBonus || 0;
     const n = 1 + Math.floor(Math.random() * 20);
     lastDice = { desc: 'проверка «' + attr + '»', roll: n, mod: mv + mb };
-    toast('Проверка «' + attr + '»: ' + n + ' + ' + (mv >= 0 ? '+' : '') + mv + ' + ' + mb + ' = ' + (n + mv + mb));
+    showRoll(
+      { label: 'проверка «' + attr + '»', expr: n + ' + ' + (mv >= 0 ? '+' : '') + mv + ' + ' + mb, total: n + mv + mb },
+      'Проверка «' + attr + '»: ' + n + ' + ' + (mv >= 0 ? '+' : '') + mv + ' + ' + mb + ' = ' + (n + mv + mb)
+    );
   }
 
   function initRoll() {
@@ -1489,16 +1534,18 @@
     const parts = [best + (rolls > 1 ? ' (лучший из ' + rolls + ')' : ''), 'скорость ' + CALC.speed(char, DATA)];
     if (CALC.hasTrait(char, DATA, 't16')) { total -= 10; parts.push('Параноик −10'); }
     lastDice = { desc: 'инициатива', roll: best, mod: total - best };
-    toast('Инициатива: ' + parts.join(' + ') + ' = ' + total);
+    showRoll({ label: 'инициатива', expr: parts.join(' + '), total }, 'Инициатива: ' + parts.join(' + ') + ' = ' + total);
   }
 
   function rerollDice() {
     const char = currentChar();
     if (!char || char.inspiration <= 0 || !lastDice) return;
-    mutate(() => { char.inspiration -= 1; });
     const n = 1 + Math.floor(Math.random() * 20);
     const total = n + lastDice.mod;
-    toast('Переброс (' + lastDice.desc + '): ' + n + (lastDice.mod ? (lastDice.mod > 0 ? ' + ' : ' − ') + Math.abs(lastDice.mod) : '') + ' = ' + total);
+    const expr = n + (lastDice.mod ? (lastDice.mod > 0 ? ' + ' : ' − ') + Math.abs(lastDice.mod) : '');
+    logRoll({ label: 'переброс: ' + lastDice.desc, expr, total });
+    mutate(() => { char.inspiration -= 1; });
+    toast('Переброс (' + lastDice.desc + '): ' + expr + ' = ' + total);
   }
 
   function handleClick(e) {
@@ -1561,6 +1608,15 @@
     else if (action === 'check-roll') checkRoll(t);
     else if (action === 'init-roll') initRoll();
     else if (action === 'reroll') rerollDice();
+    else if (action === 'rolllog-toggle') {
+      if (e && e.preventDefault) e.preventDefault();
+      state.rollLogOpen = !state.rollLogOpen;
+      render();
+    }
+    else if (action === 'rolllog-clear') {
+      state.rollLog = [];
+      render();
+    }
     else if (action === 'pool-dec') poolDelta(id, -1);
     else if (action === 'pool-dec5') poolDelta(id, -5);
     else if (action === 'pool-inc') poolDelta(id, 1);
