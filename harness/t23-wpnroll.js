@@ -185,6 +185,49 @@ click('wpn-atk', String(char.weapons.length - 1));
 ok(APP.state.rollLog[0].label === 'атака: Тестовый клинок', 'newly created weapon attackable');
 ok(APP.state.rollLog[0].expr === '11 + +0 + 0 + +3', 'created weapon bonus applied to roll');
 
+// edit existing weapon: button per card, modal prefilled
+freshRender();
+m = markup();
+ok(m.split('data-action="weapon-edit"').length - 1 === char.weapons.length, 'edit button on each weapon card');
+click('weapon-edit', '1');
+freshRender();
+m = markup();
+ok(m.includes('Изменение оружия'), 'edit modal opens');
+ok(m.includes('value="Лёгкий арбалет"'), 'stock weapon prefilled from data');
+click('weapon-editclose');
+freshRender();
+m = markup();
+ok(!m.includes('Изменение оружия'), 'edit modal closes without changes');
+ok(char.weapons[1].id === 'lightCrossbow', 'closing edit keeps weapon untouched');
+
+// saving edit rewrites the slot (stock becomes own instance)
+const emodal = makeEl();
+emodal.querySelector = (sel) => {
+  const vals = {
+    'wc-name': 'Рунный клинок',
+    'wc-kind': 'своё',
+    'wc-speed': '3',
+    'wc-props': '',
+    'wc-reach': '',
+    'wc-damage': '3d6',
+    'wc-atkbonus': '-1',
+  };
+  const key = sel && sel.replace('[data-action="', '').replace('"]', '');
+  return key && vals[key] !== undefined ? Object.assign(makeEl(), { value: vals[key] }) : null;
+};
+click('weapon-edit', '0');
+click('weapon-editsave', null, { _closest: (sel) => (sel === '.wizard-modal' ? emodal : null) });
+const edited = char.weapons[0];
+ok(edited.name === 'Рунный клинок' && edited.atkBonus === -1 && edited.speed === 3, 'save writes edited fields');
+ok(!edited.id, 'edited stock weapon becomes own instance');
+freshRender();
+click('wpn-atk', '0');
+ok(APP.state.rollLog[0].label === 'атака: Рунный клинок', 'edited weapon attackable under new name');
+ok(APP.state.rollLog[0].expr === '11 + +0 + 0 + -1', 'negative weapon bonus applied');
+click('wpn-dmg', '0');
+// Агрессивный (t7) из предыдущей секции всё ещё активен: 3d6 -> 6 кубов
+ok(APP.state.rollLog[0].label === 'урон: Рунный клинок' && APP.state.rollLog[0].expr === '4+4+4+4+4+4', 'edited damage dice rolled');
+
 if (consoleLog.length) { console.log('CONSOLE ERRORS: ' + consoleLog.join('; ')); fails++; }
 
 console.log(checks + ' checks, ' + fails + ' failures');

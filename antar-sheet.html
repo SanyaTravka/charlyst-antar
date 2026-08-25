@@ -2109,6 +2109,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   let humanModalOpen = false;
   let humanPickA = null;
   let weaponModalOpen = false;
+  let weaponEditIdx = null;
   let condModalOpen = false;
   let exhModalOpen = false;
   let levelUpOpen = false;
@@ -2205,6 +2206,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   function goto(screen) {
     state.screen = screen;
     weaponModalOpen = false;
+    weaponEditIdx = null;
     render();
   }
 
@@ -2212,6 +2214,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     state.currentId = id;
     state.tab = 'overview';
     weaponModalOpen = false;
+    weaponEditIdx = null;
     goto('sheet');
   }
 
@@ -2771,6 +2774,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else renderOverview(page, char);
     app.appendChild(page);
     if (weaponModalOpen) app.appendChild(weaponModal());
+    if (weaponEditIdx != null) {
+      const em = weaponEditModal(weaponEditIdx);
+      if (em) app.appendChild(em); else weaponEditIdx = null;
+    }
     if (condModalOpen) app.appendChild(condModal(char));
     if (exhModalOpen) app.appendChild(exhModal());
     if (levelUpOpen) { const lc = currentChar(); if (lc) app.appendChild(levelUpModal(lc)); }
@@ -3088,6 +3095,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     state.tab = id;
     state.editingPool = null;
     weaponModalOpen = false;
+    weaponEditIdx = null;
     condModalOpen = false;
     exhModalOpen = false;
     render();
@@ -3452,7 +3460,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
         <div class="card" style="margin:0.5rem 0;">
           <div class="row between">
             <strong>${esc(base.name || 'Оружие')} <span class="muted small">${esc(base.kind || '')}</span></strong>
-            <button class="btn btn-danger" data-action="weapon-del" data-id="${i}">Удалить</button>
+            <div class="row">
+              <button class="btn" data-action="weapon-edit" data-id="${i}">Изменить</button>
+              <button class="btn btn-danger" data-action="weapon-del" data-id="${i}">Удалить</button>
+            </div>
           </div>
           <p class="small muted" style="margin:0.35rem 0 0;">Атак/ход: ${atk}${aggressive && !cross ? ' (+1 Агрессивный)' : ''}</p>
           <p class="small muted" style="margin:0.35rem 0 0;">Свойства: ${base.props ? esc(base.props) : '—'}</p>
@@ -3550,27 +3561,73 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     `);
   }
 
-  function weaponCustom(btn) {
-    const modal = btn.closest('.wizard-modal');
+  function readWeaponForm(modal) {
     const val = name => {
       const f = modal.querySelector('[data-action="' + name + '"]');
       return f ? String(f.value || '').trim() : '';
     };
-    const name = val('wc-name');
-    if (!name) { toast('Укажите название оружия', 'error'); return; }
     const atkRaw = parseInt(val('wc-atkbonus'), 10);
-    mutate(() => {
-      currentChar().weapons.push({
-        name,
-        kind: val('wc-kind'),
-        speed: Math.max(1, parseInt(val('wc-speed'), 10) || 1),
-        props: val('wc-props'),
-        reach: val('wc-reach'),
-        damage: val('wc-damage'),
-        atkBonus: isNaN(atkRaw) ? 0 : atkRaw,
-      });
-    });
+    return {
+      name: val('wc-name'),
+      kind: val('wc-kind'),
+      speed: Math.max(1, parseInt(val('wc-speed'), 10) || 1),
+      props: val('wc-props'),
+      reach: val('wc-reach'),
+      damage: val('wc-damage'),
+      atkBonus: isNaN(atkRaw) ? 0 : atkRaw,
+    };
+  }
+
+  function weaponCustom(btn) {
+    const modal = btn.closest('.wizard-modal');
+    if (!modal || !modal.querySelector) return;
+    const data = readWeaponForm(modal);
+    if (!data.name) { toast('Укажите название оружия', 'error'); return; }
+    mutate(() => { currentChar().weapons.push(data); });
     weaponModalOpen = false;
+    render();
+  }
+
+  function weaponEditModal(i) {
+    const char = currentChar();
+    const w = char && char.weapons[i];
+    if (!w) return null;
+    const b = weaponBase(w);
+    const field = (action, placeholder, value, type) => `<input class="field"${type ? ` type="${type}"` : ''} placeholder="${esc(placeholder)}" data-action="${action}" value="${esc(value == null ? '' : value)}">`;
+    return el(`
+      <div class="wizard-overlay" data-action="weapon-editclose" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;">
+        <div class="card wizard-modal" data-action="weapon-editstop" style="max-width:640px;width:100%;max-height:80vh;overflow:auto;">
+          <div class="row between">
+            <h3>Изменение оружия</h3>
+            <button class="btn btn-danger" data-action="weapon-editclose">×</button>
+          </div>
+          <p class="small muted" style="margin:0.75rem 0 0.25rem;">Изменённое книжное оружие станет вашим экземпляром.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+            ${field('wc-name', 'Название', b.name)}
+            ${field('wc-kind', 'Тип', b.kind)}
+            ${field('wc-speed', 'Атак/ход', b.speed != null ? b.speed : 1, 'number min="1" max="10"')}
+            ${field('wc-atkbonus', 'Бонус к попаданию (+N)', b.atkBonus || 0, 'number step="1"')}
+            ${field('wc-props', 'Свойства', b.props)}
+            ${field('wc-reach', 'Досягаемость', b.reach)}
+            ${field('wc-damage', 'Урон', b.damage)}
+          </div>
+          <div class="row" style="margin-top:0.75rem;">
+            <button class="btn" data-action="weapon-editsave">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  function weaponEditSave(btn) {
+    const char = currentChar();
+    if (!char || weaponEditIdx == null) return;
+    const modal = btn.closest('.wizard-modal');
+    if (!modal || !modal.querySelector) return;
+    const data = readWeaponForm(modal);
+    if (!data.name) { toast('Укажите название оружия', 'error'); return; }
+    mutate(() => { char.weapons[weaponEditIdx] = data; });
+    weaponEditIdx = null;
     render();
   }
 
@@ -3862,6 +3919,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'weapon-stock') weaponStock(id);
     else if (action === 'weapon-del') weaponDel(parseInt(id, 10));
     else if (action === 'weapon-custom') weaponCustom(t);
+    else if (action === 'weapon-edit') { weaponEditIdx = parseInt(id, 10); render(); }
+    else if (action === 'weapon-editclose') { weaponEditIdx = null; render(); }
+    else if (action === 'weapon-editstop') {}
+    else if (action === 'weapon-editsave') weaponEditSave(t);
     else if (action === 'wpn-atk') weaponAttack(parseInt(id, 10));
     else if (action === 'wpn-dmg') weaponDamage(parseInt(id, 10));
     else if (action === 'inv-add') invAdd(t);
@@ -4114,6 +4175,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
   function weaponStock(id) {
     mutate(() => { currentChar().weapons.push({ id }); });
     weaponModalOpen = false;
+    weaponEditIdx = null;
     render();
   }
 
