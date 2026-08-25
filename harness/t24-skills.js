@@ -133,6 +133,7 @@ ok(m.includes('Парамедицина') && m.includes('Хирургия'), 'lo
 ok(m.includes('Кузнечное дело') && m.includes('Скульптура'), 'crafts listed');
 ok(m.split('data-action="skill-roll"').length - 1 === 60, 'roll button per skill entry');
 ok(m.split('data-action="skill-trained"').length - 1 === 60, 'trained toggle per skill entry');
+ok(m.split('>Не изучен</button>').length - 1 === 60, 'untrained state labeled explicitly');
 
 // allowed attrs only: Блеф -> харизма, мудрость
 ok(m.includes('<option value="мудрость"'), 'attr options rendered');
@@ -152,7 +153,9 @@ click('skill-trained', 'skills:blef');
 ok(char.trained.skills.blef === true, 'trained flag stored in char');
 freshRender();
 m = markup();
-ok(m.includes('border:2px solid var(--accent)">изучен</button>') || m.includes('style="border:2px solid var(--accent)"'), 'trained visual state');
+ok(m.split('>Изучен</button>').length - 1 === 1, 'trained state labeled explicitly');
+ok(m.split('>Не изучен</button>').length - 1 === 59, 'other skills still untrained');
+ok(m.includes('border-left:4px solid var(--success)'), 'trained row highlighted');
 click('skill-roll', 'skills:blef');
 ok(APP.state.rollLog[0].expr === '11 + +2 + 2', 'trained expr adds mastery');
 ok(APP.state.rollLog[0].total === 15, 'trained total 15');

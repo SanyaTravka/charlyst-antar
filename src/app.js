@@ -1241,13 +1241,13 @@
         const curAttr = state.skillAttrs[catId] || (sk.attrs && sk.attrs[0]) || CALC.ATTRS[0];
         const trained = !!(char.trained[key] && char.trained[key][id]);
         body.appendChild(el(`
-          <div class="row between" style="padding:0.3rem 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:0.35rem;">
+          <div class="row between" style="padding:0.3rem 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:0.35rem;${trained ? 'border-left:4px solid var(--success);padding-left:0.45rem;' : ''}">
             <strong>${esc(sk.name)}</strong>
             <div class="row">
               <select class="field" data-action="skill-attr" data-id="${esc(catId)}">
                 ${(sk.attrs || []).map(a => `<option value="${esc(a)}"${a === curAttr ? ' selected' : ''}>${esc(a)}</option>`).join('')}
               </select>
-              <button class="btn" data-action="skill-trained" data-id="${esc(catId)}"${trained ? ' style="border:2px solid var(--accent)"' : ''}>изучен</button>
+              <button class="btn" data-action="skill-trained" data-id="${esc(catId)}"${trained ? ' style="border:2px solid var(--success);color:var(--success);font-weight:700;"' : ' style="opacity:0.7;"'}>${trained ? 'Изучен' : 'Не изучен'}</button>
               <button class="btn" data-action="skill-roll" data-id="${esc(catId)}">Бросок</button>
             </div>
           </div>
