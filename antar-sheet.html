@@ -2089,7 +2089,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll' };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {} };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -3157,6 +3157,21 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     } else {
       btn = `<button class="btn" data-action="ab-buy" data-id="${esc(id)}">Взять</button>`;
     }
+    let rollRow = '';
+    if (ab.type !== 'passive') {
+      const ar = state.abRolls[id] || {};
+      const curAttr = ar.attr || CALC.ATTRS[0];
+      rollRow = `
+        <div class="row" style="margin-top:0.45rem;flex-wrap:wrap;">
+          <select class="field" data-action="ab-attr" data-id="${esc(id)}">
+            ${CALC.ATTRS.map(a => `<option value="${esc(a)}"${a === curAttr ? ' selected' : ''}>${esc(a)}</option>`).join('')}
+          </select>
+          <input class="field" type="number" step="1" style="width:4.5rem;" title="Доп. значение (можно отрицательное)" data-action="ab-extra" data-id="${esc(id)}" value="${ar.extra ? esc(ar.extra) : 0}">
+          <button class="btn" data-action="ab-roll" data-id="${esc(id)}">Бросок</button>
+          <span class="small muted">d20 + мод атрибута + уровневый бонус</span>
+        </div>
+      `;
+    }
     return el(`
       <div class="card" style="margin:0.5rem 0;">
         <div class="row between">
@@ -3164,12 +3179,44 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
           ${btn}
         </div>
         <p class="small muted" style="margin:0.35rem 0 0;">${abilityMeta(ab).map(esc).join(' · ')}</p>
+        ${rollRow}
         <details style="margin-top:0.4rem;" ${state.openDescs[id] ? 'open' : ''}>
           <summary class="small muted" data-action="desc-toggle" data-id="${esc(id)}" style="cursor:pointer;">Описание</summary>
           <p class="small" style="margin:0.35rem 0 0;">${esc(ab.desc)}</p>
         </details>
       </div>
     `);
+  }
+
+  function abilityRoll(id) {
+    const char = currentChar();
+    const ab = DATA.allAbilities[id];
+    if (!char || !ab || ab.type === 'passive') return;
+    const ar = state.abRolls[id] || {};
+    const attr = ar.attr || CALC.ATTRS[0];
+    const extra = parseInt(ar.extra, 10) || 0;
+    const mv = CALC.mods(char, DATA)[attr] || 0;
+    const mb = char.masteryBonus || 0;
+    const n = 1 + Math.floor(Math.random() * 20);
+    lastDice = { desc: 'проверка «' + attr + '»', roll: n, mod: mv + mb + extra };
+    const terms = [String(n), (mv >= 0 ? '+' : '') + mv, String(mb)];
+    if (extra !== 0) terms.push((extra > 0 ? '+' : '') + extra);
+    showRoll(
+      { label: 'проверка «' + attr + '» (' + ab.name + ')', expr: terms.join(' + '), total: n + mv + mb + extra },
+      'Проверка «' + attr + '» (' + ab.name + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb + extra)
+    );
+  }
+
+  function abExtraSet(id, v) {
+    const n = parseInt(v, 10);
+    state.abRolls[id] = state.abRolls[id] || {};
+    state.abRolls[id].extra = isNaN(n) ? 0 : n;
+  }
+
+  function abAttrSet(id, v) {
+    state.abRolls[id] = state.abRolls[id] || {};
+    state.abRolls[id].attr = String(v || '');
+    render();
   }
 
   function customAbilitiesBlock(char, specId) {
@@ -3787,6 +3834,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'new-day') newDay();
     else if (action === 'ab-buy') buyAbility(currentChar(), id);
     else if (action === 'ab-sell') sellAbility(currentChar(), id);
+    else if (action === 'ab-roll') abilityRoll(id);
     else if (action === 'custom-add') addCustomAbility(currentChar(), id, t);
     else if (action === 'custom-del') removeCustomAbility(currentChar(), parseInt(id, 10));
     else if (action === 'os-plus') osBonusChar(currentChar(), id, 1);
@@ -3817,6 +3865,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'armor-ac-set') armorAcSet(t.value);
     else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
     else if (action === 'notes-input') notesInput(t.value);
+    else if (action === 'ab-extra') abExtraSet(t.getAttribute('data-id'), t.value);
     else if (action === 'levelup-manual') levelUpManual(t.value);
   }
 
@@ -3836,6 +3885,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     if (action === 'armor-set') armorSet(t.value);
     else if (action === 'shield-set') shieldSet(t.value);
     else if (action === 'injury-set') injurySet(t.getAttribute('data-id'), t.checked);
+    else if (action === 'ab-attr') abAttrSet(t.getAttribute('data-id'), t.value);
   }
 
   function injurySet(k, on) {
