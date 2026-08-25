@@ -4,7 +4,7 @@
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll' };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -1472,14 +1472,53 @@
     return box;
   }
 
+  function poolFormula(pool) {
+    const groups = [];
+    for (const s of pool) {
+      const g = groups.find(x => x.sides === s);
+      if (g) g.count++;
+      else groups.push({ sides: s, count: 1 });
+    }
+    return groups.map(g => g.count + 'd' + g.sides).join(' + ');
+  }
+
   function diceBlock(char) {
     const insp = CALC.traits(char, DATA).reduce((s, t) => s || (t.inspirationDaily || 0), 0);
     const box = el('<div></div>');
     box.appendChild(el(`
       <div class="row">
+        <button class="btn" data-action="dice-mode" data-id="roll"${state.diceMode === 'roll' ? ' style="border:2px solid var(--accent)"' : ''}>Бросок</button>
+        <button class="btn" data-action="dice-mode" data-id="pool"${state.diceMode === 'pool' ? ' style="border:2px solid var(--accent)"' : ''}>Пул</button>
+        <span class="small muted">${state.diceMode === 'pool' ? 'клик по dN добавляет куб в пул' : 'мгновенный бросок'}</span>
+      </div>
+    `));
+    box.appendChild(el(`
+      <div class="row" style="margin-top:0.5rem;">
         ${['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map(d => `<button class="btn" data-action="dice" data-id="${d}">${d}</button>`).join('')}
       </div>
     `));
+    if (state.diceMode === 'pool') {
+      const poolPanel = el('<div style="margin-top:0.5rem;"></div>');
+      if (state.dicePool.length) {
+        const counts = {};
+        for (const s of state.dicePool) counts[s] = (counts[s] || 0) + 1;
+        poolPanel.appendChild(el(`
+          <div class="row" style="flex-wrap:wrap;">
+            <span class="small muted">Состав: ${esc(poolFormula(state.dicePool))}</span>
+            ${Object.keys(counts).map(s => `<button class="btn" data-action="dice-pool-remove" data-id="${s}" title="Убрать один d${s}">d${s} ×${counts[s]}</button>`).join('')}
+          </div>
+        `));
+      } else {
+        poolPanel.appendChild(el('<p class="small muted">Пул пуст — добавьте кубы кнопками выше.</p>'));
+      }
+      poolPanel.appendChild(el(`
+        <div class="row" style="margin-top:0.5rem;">
+          <button class="btn" data-action="pool-roll"${dis(!state.dicePool.length)}>Бросить пул</button>
+          <button class="btn btn-danger" data-action="pool-clear"${dis(!state.dicePool.length)}>Очистить</button>
+        </div>
+      `));
+      box.appendChild(poolPanel);
+    }
     if (insp) {
       box.appendChild(el(`
         <div class="row" style="margin-top:0.5rem;">
@@ -1502,9 +1541,26 @@
 
   function diceRoll(key) {
     const sides = parseInt(key.slice(1), 10) || 20;
+    if (state.diceMode === 'pool') {
+      state.dicePool.push(sides);
+      render();
+      return;
+    }
     const n = 1 + Math.floor(Math.random() * sides);
     lastDice = { desc: key, roll: n, mod: 0 };
     showRoll({ label: key, expr: String(n), total: n }, 'Кость ' + key + ': ' + n);
+  }
+
+  function poolRoll() {
+    if (!state.dicePool.length) return;
+    const vals = state.dicePool.map(s => 1 + Math.floor(Math.random() * s));
+    const total = vals.reduce((a, b) => a + b, 0);
+    const formula = poolFormula(state.dicePool);
+    state.dicePool = [];
+    showRoll(
+      { label: 'Пул ' + formula, expr: vals.join('+'), total },
+      'Пул ' + formula + ': ' + vals.join('+') + ' = ' + total
+    );
   }
 
   function checkRoll(btn) {
@@ -1605,6 +1661,15 @@
     else if (action === 'inv-add') invAdd(t);
     else if (action === 'inv-del') invDel(parseInt(id, 10));
     else if (action === 'dice') diceRoll(id);
+    else if (action === 'dice-mode') { state.diceMode = id === 'pool' ? 'pool' : 'roll'; render(); }
+    else if (action === 'dice-pool-remove') {
+      const s = parseInt(id, 10);
+      const i = state.dicePool.lastIndexOf(s);
+      if (i !== -1) state.dicePool.splice(i, 1);
+      render();
+    }
+    else if (action === 'pool-roll') poolRoll();
+    else if (action === 'pool-clear') { state.dicePool = []; render(); }
     else if (action === 'check-roll') checkRoll(t);
     else if (action === 'init-roll') initRoll();
     else if (action === 'reroll') rerollDice();
