@@ -156,6 +156,7 @@ m = markup();
 ok(m.split('>Изучен</button>').length - 1 === 1, 'trained state labeled explicitly');
 ok(m.split('>Не изучен</button>').length - 1 === 59, 'other skills still untrained');
 ok(m.includes('border-left:4px solid var(--success)'), 'trained row highlighted');
+ok(!m.includes('color:var(--success)'), 'no green font on buttons');
 click('skill-roll', 'skills:blef');
 ok(APP.state.rollLog[0].expr === '11 + +2 + 2', 'trained expr adds mastery');
 ok(APP.state.rollLog[0].total === 15, 'trained total 15');
