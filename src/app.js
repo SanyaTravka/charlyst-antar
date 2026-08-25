@@ -1410,23 +1410,29 @@
     const name = base.name || w.name || 'Оружие';
     const p = CALC.parseDamage(base.damage);
     if (!p) { toast('Не удалось распознать кость урона («' + esc(name) + '»)', 'error'); return; }
-    let dice = p.dice;
     const doubled = CALC.hasTrait(char, DATA, 't7');
-    if (doubled) dice *= 2;
-    const vals = [];
-    for (let k = 0; k < dice; k++) vals.push(1 + Math.floor(Math.random() * p.sides));
-    const sum = vals.reduce((a, b) => a + b, 0);
+    const parts = [];
+    const allVals = [];
+    for (const g of p.groups) {
+      let dice = g.dice;
+      if (doubled) dice *= 2;
+      const vals = [];
+      for (let k = 0; k < dice; k++) vals.push(1 + Math.floor(Math.random() * g.sides));
+      parts.push({ label: dice + 'd' + g.sides, vals });
+      allVals.push(...vals);
+    }
+    const sum = allVals.reduce((a, b) => a + b, 0);
     const smod = p.mod ? (CALC.mods(char, DATA)['сила'] || 0) : 0;
     const total = (p.flat || 0) + sum + smod;
     const terms = [];
     if (p.flat) terms.push(String(p.flat));
-    terms.push(...vals.map(String));
+    terms.push(...allVals.map(String));
     if (smod !== 0) terms.push(String(smod));
     const expr = terms.join('+');
-    const formula = dice + 'd' + p.sides;
+    const breakdown = parts.map(pt => pt.label + ': ' + pt.vals.join(', ')).join(' + ');
     showRoll(
       { label: 'урон: ' + name, expr, total },
-      'Урон (' + esc(name) + '): ' + expr + ' = ' + total + ' (' + formula + ': ' + vals.join(', ') + ')' + (doubled ? ' ×2 куба' : '')
+      'Урон (' + esc(name) + '): ' + expr + ' = ' + total + ' (' + breakdown + ')' + (doubled ? ' ×2 куба' : '')
     );
   }
 

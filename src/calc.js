@@ -182,16 +182,20 @@ const t = traits(char, DATA);
 
   function parseDamage(s) {
     const str = String(s == null ? '' : s);
-    const dm = str.match(/(\d+)\s*[dд]\s*(\d+)/i);
-    if (!dm) return null;
+    const re = /(\d+)\s*[dд]\s*(\d+)/gi;
+    const groups = [];
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      const dice = parseInt(m[1], 10);
+      const sides = parseInt(m[2], 10);
+      if (dice >= 1 && sides >= 1) groups.push({ dice, sides });
+    }
+    if (!groups.length) return null;
     const rest = str.replace(/(\d+)\s*[dд]\s*(\d+)/gi, ' ');
-    const fm = rest.match(/-?\d+/);
-    return {
-      dice: parseInt(dm[1], 10),
-      sides: parseInt(dm[2], 10),
-      flat: fm ? parseInt(fm[0], 10) : 0,
-      mod: /мод\.?\s*силы/i.test(str),
-    };
+    let flat = 0;
+    const nums = rest.match(/-?\d+/g) || [];
+    for (const t of nums) flat += parseInt(t, 10);
+    return { groups, flat, mod: /мод\.?\s*силы/i.test(str) };
   }
 
   return { ATTRS, mod, defaults, race, status, traitIds, traits, hasTrait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie, inventoryWeight, parseDamage };

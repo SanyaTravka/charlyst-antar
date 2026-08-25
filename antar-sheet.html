@@ -2000,16 +2000,20 @@ const t = traits(char, DATA);
 
   function parseDamage(s) {
     const str = String(s == null ? '' : s);
-    const dm = str.match(/(\d+)\s*[dд]\s*(\d+)/i);
-    if (!dm) return null;
+    const re = /(\d+)\s*[dд]\s*(\d+)/gi;
+    const groups = [];
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      const dice = parseInt(m[1], 10);
+      const sides = parseInt(m[2], 10);
+      if (dice >= 1 && sides >= 1) groups.push({ dice, sides });
+    }
+    if (!groups.length) return null;
     const rest = str.replace(/(\d+)\s*[dд]\s*(\d+)/gi, ' ');
-    const fm = rest.match(/-?\d+/);
-    return {
-      dice: parseInt(dm[1], 10),
-      sides: parseInt(dm[2], 10),
-      flat: fm ? parseInt(fm[0], 10) : 0,
-      mod: /мод\.?\s*силы/i.test(str),
-    };
+    let flat = 0;
+    const nums = rest.match(/-?\d+/g) || [];
+    for (const t of nums) flat += parseInt(t, 10);
+    return { groups, flat, mod: /мод\.?\s*силы/i.test(str) };
   }
 
   return { ATTRS, mod, defaults, race, status, traitIds, traits, hasTrait, sumOs, totalOS, tier, attrFinal, mods, maxHp, maxStamina, maxMana, speed, ac, abilityCost, conMult, avgDie, inventoryWeight, parseDamage };
@@ -3509,23 +3513,29 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const name = base.name || w.name || 'Оружие';
     const p = CALC.parseDamage(base.damage);
     if (!p) { toast('Не удалось распознать кость урона («' + esc(name) + '»)', 'error'); return; }
-    let dice = p.dice;
     const doubled = CALC.hasTrait(char, DATA, 't7');
-    if (doubled) dice *= 2;
-    const vals = [];
-    for (let k = 0; k < dice; k++) vals.push(1 + Math.floor(Math.random() * p.sides));
-    const sum = vals.reduce((a, b) => a + b, 0);
+    const parts = [];
+    const allVals = [];
+    for (const g of p.groups) {
+      let dice = g.dice;
+      if (doubled) dice *= 2;
+      const vals = [];
+      for (let k = 0; k < dice; k++) vals.push(1 + Math.floor(Math.random() * g.sides));
+      parts.push({ label: dice + 'd' + g.sides, vals });
+      allVals.push(...vals);
+    }
+    const sum = allVals.reduce((a, b) => a + b, 0);
     const smod = p.mod ? (CALC.mods(char, DATA)['сила'] || 0) : 0;
     const total = (p.flat || 0) + sum + smod;
     const terms = [];
     if (p.flat) terms.push(String(p.flat));
-    terms.push(...vals.map(String));
+    terms.push(...allVals.map(String));
     if (smod !== 0) terms.push(String(smod));
     const expr = terms.join('+');
-    const formula = dice + 'd' + p.sides;
+    const breakdown = parts.map(pt => pt.label + ': ' + pt.vals.join(', ')).join(' + ');
     showRoll(
       { label: 'урон: ' + name, expr, total },
-      'Урон (' + esc(name) + '): ' + expr + ' = ' + total + ' (' + formula + ': ' + vals.join(', ') + ')' + (doubled ? ' ×2 куба' : '')
+      'Урон (' + esc(name) + '): ' + expr + ' = ' + total + ' (' + breakdown + ')' + (doubled ? ' ×2 куба' : '')
     );
   }
 

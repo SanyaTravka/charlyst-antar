@@ -224,8 +224,8 @@ test('defaults: complete character model', () => {
 });
 
 test('parseDamage: melee NdM + мод.Силы', () => {
-  assert.deepEqual(CALC.parseDamage('2d4+мод.Силы колющего или рубящего'), { dice: 2, sides: 4, flat: 0, mod: true });
-  assert.deepEqual(CALC.parseDamage('2d8+мод.Силы колющего'), { dice: 2, sides: 8, flat: 0, mod: true });
+  assert.deepEqual(CALC.parseDamage('2d4+мод.Силы колющего или рубящего'), { groups: [{ dice: 2, sides: 4 }], flat: 0, mod: true });
+  assert.deepEqual(CALC.parseDamage('2d8+мод.Силы колющего'), { groups: [{ dice: 2, sides: 8 }], flat: 0, mod: true });
 });
 
 test('parseDamage: case-insensitive Мод.Силы', () => {
@@ -233,12 +233,28 @@ test('parseDamage: case-insensitive Мод.Силы', () => {
 });
 
 test('parseDamage: crossbow flat + NdM without mod', () => {
-  assert.deepEqual(CALC.parseDamage('10+2d10 колющего'), { dice: 2, sides: 10, flat: 10, mod: false });
-  assert.deepEqual(CALC.parseDamage('15+2d12 колющего'), { dice: 2, sides: 12, flat: 15, mod: false });
+  assert.deepEqual(CALC.parseDamage('10+2d10 колющего'), { groups: [{ dice: 2, sides: 10 }], flat: 10, mod: false });
+  assert.deepEqual(CALC.parseDamage('15+2d12 колющего'), { groups: [{ dice: 2, sides: 12 }], flat: 15, mod: false });
 });
 
 test('parseDamage: bare NdM', () => {
-  assert.deepEqual(CALC.parseDamage('1d6'), { dice: 1, sides: 6, flat: 0, mod: false });
+  assert.deepEqual(CALC.parseDamage('1d6'), { groups: [{ dice: 1, sides: 6 }], flat: 0, mod: false });
+});
+
+test('parseDamage: multiple dice groups', () => {
+  assert.deepEqual(CALC.parseDamage('2d6+1d4'), { groups: [{ dice: 2, sides: 6 }, { dice: 1, sides: 4 }], flat: 0, mod: false });
+  assert.deepEqual(CALC.parseDamage('1d8+2d6+1д4 огненного'), {
+    groups: [{ dice: 1, sides: 8 }, { dice: 2, sides: 6 }, { dice: 1, sides: 4 }], flat: 0, mod: false,
+  });
+});
+
+test('parseDamage: multiple groups with flat and mod', () => {
+  const p = CALC.parseDamage('5+2d6+1d4+мод.Силы-1');
+  assert.equal(p.groups.length, 2);
+  assert.deepEqual(p.groups[0], { dice: 2, sides: 6 });
+  assert.deepEqual(p.groups[1], { dice: 1, sides: 4 });
+  assert.equal(p.flat, 4); // 5 и −1 суммируются
+  assert.equal(p.mod, true);
 });
 
 test('parseDamage: unparseable returns null', () => {

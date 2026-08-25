@@ -185,6 +185,31 @@ click('wpn-atk', String(char.weapons.length - 1));
 ok(APP.state.rollLog[0].label === 'атака: Тестовый клинок', 'newly created weapon attackable');
 ok(APP.state.rollLog[0].expr === '11 + +0 + 0 + +3', 'created weapon bonus applied to roll');
 
+// multi-group damage formula 2d6+1d4
+const emulti = makeEl();
+emulti.querySelector = (sel) => {
+  const vals = { 'wc-name': 'Кистень', 'wc-kind': 'своё', 'wc-speed': '1', 'wc-props': '', 'wc-reach': '', 'wc-damage': '2d6+1d4 огненного', 'wc-atkbonus': '' };
+  const key = sel && sel.replace('[data-action="', '').replace('"]', '');
+  return key && vals[key] !== undefined ? Object.assign(makeEl(), { value: vals[key] }) : null;
+};
+click('weapon-custom', null, { _closest: (sel) => (sel === '.wizard-modal' ? emulti : null) });
+APP.mutate(() => { char.traits = []; }); // базовая формула без Агрессивного
+freshRender();
+click('wpn-dmg', String(char.weapons.length - 1));
+ok(APP.state.rollLog[0].label === 'урон: Кистень', 'multi-group damage logged');
+ok(APP.state.rollLog[0].expr === '4+4+3', 'all dice groups rolled: d6,d6,d4');
+ok(APP.state.rollLog[0].total === 11, 'multi-group total 11');
+m = markup();
+ok(m.includes('(2d6: 4, 4 + 1d4: 3)'), 'breakdown lists each group');
+
+// Агрессивный удваивает кубы каждой группы
+APP.mutate(() => { char.traits = ['t7']; });
+click('wpn-dmg', String(char.weapons.length - 1));
+ok(APP.state.rollLog[0].expr === '4+4+4+4+3+3', 'aggressive doubles every group');
+ok(APP.state.rollLog[0].total === 22, 'multi-group doubled total 22');
+m = markup();
+ok(m.includes('(4d6: 4, 4, 4, 4 + 2d4: 3, 3)'), 'doubled breakdown per group');
+
 // edit existing weapon: button per card, modal prefilled
 freshRender();
 m = markup();
