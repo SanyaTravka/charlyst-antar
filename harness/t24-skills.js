@@ -176,6 +176,20 @@ ok(APP.state.rollLog[0].label.indexOf('Лечение') !== -1, 'lore roll logge
 click('skill-roll', 'crafts:skulptura');
 ok(APP.state.rollLog[0].label.indexOf('Скульптура') !== -1, 'craft roll logged by name');
 
+// free bonus field per skill
+ok(m.split('data-action="skill-bonus"').length - 1 === 60, 'bonus input per skill entry');
+input('skill-bonus', 'skills:blef', '-1');
+ok(APP.state.skillBonus['skills:blef'] === -1, 'negative skill bonus stored');
+// blef: trained, attr мудрость (mod 0), mastery 2, bonus -1
+click('skill-roll', 'skills:blef');
+ok(APP.state.rollLog[0].expr === '11 + +0 + 2 + -1', 'expr: d20 + mod + mastery + free bonus');
+ok(APP.state.rollLog[0].total === 12, 'total 11 + 0 + 2 - 1 = 12');
+// untrained skill ignores mastery but keeps bonus
+input('skill-bonus', 'crafts:skulptura', '3');
+click('skill-roll', 'crafts:skulptura');
+ok(APP.state.rollLog[0].expr === '11 + +0 + +3', 'untrained: no mastery, bonus kept');
+ok(APP.state.rollLog[0].total === 14, 'untrained total 11 + 3 = 14');
+
 // inspiration reroll repeats skill check
 APP.mutate(() => { char.inspiration = 1; });
 APP.state.lastDiceProbe = null;

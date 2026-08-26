@@ -2285,7 +2285,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {} };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {}, skillBonus: {} };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -3506,7 +3506,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     container.appendChild(el(`
       <div class="row between" style="margin-bottom:0.75rem;flex-wrap:wrap;gap:0.35rem;">
         <h3 style="margin:0;">Навыки</h3>
-        <span class="muted small">d20 + мод характеристики · изученные добавляют уровневый бонус (${esc(char.masteryBonus || 0)})</span>
+        <span class="muted small">d20 + мод характеристики · изученные + уровневый (${esc(char.masteryBonus || 0)}) · плюс свободный бонус</span>
       </div>
     `));
     const cats = [['skills', 'Навыки', DATA.skills], ['lores', 'Знания', DATA.lores], ['crafts', 'Ремёсла', DATA.crafts]];
@@ -3526,6 +3526,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
                 ${(sk.attrs || []).map(a => `<option value="${esc(a)}"${a === curAttr ? ' selected' : ''}>${esc(a)}</option>`).join('')}
               </select>
               <button class="btn" data-action="skill-trained" data-id="${esc(catId)}"${trained ? ' style="border:2px solid var(--success);font-weight:700;"' : ' style="opacity:0.7;"'}>${trained ? 'Изучен' : 'Не изучен'}</button>
+              <input class="field" type="number" step="1" style="width:4rem;" title="Свободный бонус (можно отрицательный)" data-action="skill-bonus" data-id="${esc(catId)}" value="${state.skillBonus[catId] ? esc(state.skillBonus[catId]) : 0}">
               <button class="btn" data-action="skill-roll" data-id="${esc(catId)}">Бросок</button>
             </div>
           </div>
@@ -3560,13 +3561,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const mv = CALC.mods(char, DATA)[attr] || 0;
     const trained = !!(char.trained[cat] && char.trained[cat][id]);
     const mb = trained ? (char.masteryBonus || 0) : 0;
+    const bonus = parseInt(state.skillBonus[catId], 10) || 0;
     const n = 1 + Math.floor(Math.random() * 20);
-    lastDice = { desc: 'навык «' + sk.name + '»', roll: n, mod: mv + mb };
+    lastDice = { desc: 'навык «' + sk.name + '»', roll: n, mod: mv + mb + bonus };
     const terms = [String(n), (mv >= 0 ? '+' : '') + mv];
     if (trained) terms.push(String(mb));
+    if (bonus !== 0) terms.push((bonus > 0 ? '+' : '') + bonus);
     showRoll(
-      { label: 'навык «' + sk.name + '» (' + attr + ')', expr: terms.join(' + '), total: n + mv + mb },
-      esc(sk.name) + ' (' + esc(attr) + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb)
+      { label: 'навык «' + sk.name + '» (' + attr + ')', expr: terms.join(' + '), total: n + mv + mb + bonus },
+      esc(sk.name) + ' (' + esc(attr) + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb + bonus)
     );
   }
 
@@ -4263,6 +4266,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
     else if (action === 'notes-input') notesInput(t.value);
     else if (action === 'ab-extra') abExtraSet(t.getAttribute('data-id'), t.value);
+    else if (action === 'skill-bonus') {
+      const n = parseInt(t.value, 10);
+      state.skillBonus[t.getAttribute('data-id')] = isNaN(n) ? 0 : n;
+    }
     else if (action === 'levelup-manual') levelUpManual(t.value);
   }
 
