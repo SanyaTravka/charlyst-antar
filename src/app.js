@@ -1642,6 +1642,11 @@
       const a = char.armor && DATA.armor[char.armor.id];
       if (a) box.appendChild(el(`<p class="small muted" style="margin:0.5rem 0 0;">${esc(a.name)} (КД ${a.ac}): ${esc(a.penalties)}</p>`));
     }
+    if (char.shield && DATA.shield && char.shield.id && DATA.shield[char.shield.id]) {
+      const s = DATA.shield[char.shield.id];
+      box.appendChild(el(`<p class="small" style="margin:0.35rem 0 0;">Щит: ${esc(s.name)} (+${esc(s.bonus)} к КД)</p>`));
+    }
+    box.appendChild(el(`<p class="small" style="margin:0.35rem 0 0;"><strong>Итог КД: ${CALC.ac(char, DATA)}</strong></p>`));
     return box;
   }
 

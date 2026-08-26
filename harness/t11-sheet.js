@@ -77,6 +77,12 @@ function markup() {
   return appEl.children.map(flat).join('');
 }
 
+// the document stub never clears children on innerHTML='' (unlike a real browser)
+function freshRender() {
+  appEl.children.length = 0;
+  APP.render();
+}
+
 function click(action, id, extra) {
   const node = Object.assign(makeEl(), extra || {});
   node.getAttribute = function (n) { return n === 'data-action' ? action : n === 'data-id' ? id : null; };
@@ -144,6 +150,19 @@ ok(char.armor && char.armor.id === 'light', 'armor set');
 m = markup();
 ok(m.includes('КД') && m.includes('16'), 'ac 16 with light armor');
 ok(m.includes('Легкие'), 'armor name in markup');
+
+// shield contribution visible on the armor card
+change('shield-set', 'tower');
+ok(char.shield && char.shield.id === 'tower', 'shield set');
+m = markup();
+ok(m.includes('Башенный'), 'shield name in markup');
+ok(m.includes('+3 к КД'), 'shield bonus shown');
+ok(m.includes('Итог КД: 19'), 'total ac shown on card');
+change('shield-set', '');
+ok(char.shield === null, 'shield cleared');
+freshRender();
+m = markup();
+ok(!m.includes('Итог КД: 19'), 'total ac updates after clearing shield');
 
 change('armor-set', '');
 ok(char.armor === null, 'armor cleared');
