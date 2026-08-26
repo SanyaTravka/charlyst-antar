@@ -147,8 +147,8 @@ ok(APP.state.abRolls[ACTIVE].attr === 'харизма', 'attr choice stored');
 click('ab-roll', ACTIVE);
 ok(APP.state.rollLog.length === 1, 'ability roll logged');
 ok(APP.state.rollLog[0].label === 'проверка «харизма» (Атака с финтом)', 'label names check and ability');
-ok(APP.state.rollLog[0].expr === '11 + +0 + 0 + -2', 'expr lists d20, mod, mastery, extra');
-ok(APP.state.rollLog[0].total === 9, 'total 11 + 0 + 0 - 2 = 9');
+ok(APP.state.rollLog[0].expr === '11 + +0 + -2', 'expr lists d20, mod, extra (no mastery)');
+ok(APP.state.rollLog[0].total === 9, 'total 11 + 0 - 2 = 9');
 m = markup();
 ok(m.includes('(Атака с финтом)') && m.includes('= 9'), 'result visible on page');
 
@@ -159,18 +159,18 @@ ok(APP.state.rollLog.length === 2, 'reroll after ability roll');
 ok(APP.state.rollLog[0].label === 'переброс: проверка «харизма»', 'reroll repeats ability check');
 ok(APP.state.rollLog[0].expr === '11 − 2' && APP.state.rollLog[0].total === 9, 'reroll applies extra as mod');
 
-// positive extra and nonzero mastery
+// positive extra: mastery bonus must NOT be added even when set
 input('ab-extra', ACTIVE, '+3');
 ok(APP.state.abRolls[ACTIVE].extra === 3, 'positive extra stored');
 APP.mutate(() => { char.masteryBonus = 2; });
 click('ab-roll', ACTIVE);
-ok(APP.state.rollLog[0].expr === '11 + +0 + 2 + +3', 'expr with mastery 2 and extra +3');
-ok(APP.state.rollLog[0].total === 16, 'total 11 + 0 + 2 + 3 = 16');
+ok(APP.state.rollLog[0].expr === '11 + +0 + +3', 'expr with extra only, no mastery term');
+ok(APP.state.rollLog[0].total === 14, 'total 11 + 0 + 3 = 14 (mastery ignored)');
 
 // zero extra omits term
 input('ab-extra', ACTIVE, '0');
 click('ab-roll', ACTIVE);
-ok(APP.state.rollLog[0].expr === '11 + +0 + 2', 'zero extra omitted from expr');
+ok(APP.state.rollLog[0].expr === '11 + +0', 'zero extra omitted from expr');
 ok(APP.state.rollLog.length === 4, 'each roll logged once');
 
 if (consoleLog.length) { console.log('CONSOLE ERRORS: ' + consoleLog.join('; ')); fails++; }

@@ -1094,7 +1094,7 @@
           </select>
           <input class="field" type="number" step="1" style="width:4.5rem;" title="Доп. значение (можно отрицательное)" data-action="ab-extra" data-id="${esc(id)}" value="${ar.extra ? esc(ar.extra) : 0}">
           <button class="btn" data-action="ab-roll" data-id="${esc(id)}">Бросок</button>
-          <span class="small muted">d20 + мод атрибута + уровневый бонус</span>
+          <span class="small muted">d20 + мод атрибута + свой бонус</span>
         </div>
       `;
     }
@@ -1122,14 +1122,13 @@
     const attr = ar.attr || CALC.ATTRS[0];
     const extra = parseInt(ar.extra, 10) || 0;
     const mv = CALC.mods(char, DATA)[attr] || 0;
-    const mb = char.masteryBonus || 0;
     const n = 1 + Math.floor(Math.random() * 20);
-    lastDice = { desc: 'проверка «' + attr + '»', roll: n, mod: mv + mb + extra };
-    const terms = [String(n), (mv >= 0 ? '+' : '') + mv, String(mb)];
+    lastDice = { desc: 'проверка «' + attr + '»', roll: n, mod: mv + extra };
+    const terms = [String(n), (mv >= 0 ? '+' : '') + mv];
     if (extra !== 0) terms.push((extra > 0 ? '+' : '') + extra);
     showRoll(
-      { label: 'проверка «' + attr + '» (' + ab.name + ')', expr: terms.join(' + '), total: n + mv + mb + extra },
-      'Проверка «' + attr + '» (' + ab.name + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb + extra)
+      { label: 'проверка «' + attr + '» (' + ab.name + ')', expr: terms.join(' + '), total: n + mv + extra },
+      'Проверка «' + attr + '» (' + ab.name + '): ' + terms.join(' + ') + ' = ' + (n + mv + extra)
     );
   }
 
@@ -1612,15 +1611,19 @@
     const armorOpts = [['', '—']].concat(Object.keys(DATA.armor).map(id => [id, DATA.armor[id].name])).concat([['custom', 'Кастомная броня…']]);
     const shieldOpts = [['', '—']].concat(Object.keys(DATA.shield).map(id => [id, DATA.shield[id].name]));
     box.appendChild(el(`
-      <div class="row">
-        <span class="muted">Доспех</span>
-        <select class="field" data-action="armor-set">
-          ${armorOpts.map(([id, name]) => `<option value="${esc(id)}"${char.armor && char.armor.id === id ? ' selected' : ''}>${esc(name)}</option>`).join('')}
-        </select>
-        <span class="muted">Щит</span>
-        <select class="field" data-action="shield-set">
-          ${shieldOpts.map(([id, name]) => `<option value="${esc(id)}"${char.shield && char.shield.id === id ? ' selected' : ''}>${esc(name)}</option>`).join('')}
-        </select>
+      <div>
+        <div class="row">
+          <span class="muted">Доспех</span>
+          <select class="field" data-action="armor-set">
+            ${armorOpts.map(([id, name]) => `<option value="${esc(id)}"${char.armor && char.armor.id === id ? ' selected' : ''}>${esc(name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="row" style="margin-top:0.5rem;">
+          <span class="muted">Щит</span>
+          <select class="field" data-action="shield-set">
+            ${shieldOpts.map(([id, name]) => `<option value="${esc(id)}"${char.shield && char.shield.id === id ? ' selected' : ''}>${esc(name)}</option>`).join('')}
+          </select>
+        </div>
       </div>
     `));
     if (char.armor && char.armor.id === 'custom') {
