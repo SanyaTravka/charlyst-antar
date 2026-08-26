@@ -233,7 +233,7 @@ ok(appEl.children.some(c => (c.innerHTML || '').includes('Инициатива: 
 
 const checkRow = { querySelector: (sel) => (sel === '[data-action="check-attr"]' ? { value: 'ловкость' } : null) };
 click('check-roll', null, { _closest: (sel) => null, parentNode: checkRow });
-ok(appEl.children.some(c => (c.innerHTML || '').includes('Проверка «ловкость»: 11 + +2 + 1 = 14')), 'check roll toast');
+ok(appEl.children.some(c => (c.innerHTML || '').includes('Проверка «ловкость»: 11 + +2 = 13')), 'check roll toast (no mastery)');
 
 click('tab', 'specs');
 m = markup();

@@ -139,12 +139,23 @@ ok(APP.state.rollLog[0].label === 'd6' && APP.state.rollLog[0].total === 4, 'new
 click('check-roll', null, { parentNode: { querySelector: () => ({ value: 'харизма' }) } });
 ok(APP.state.rollLog.length === 3, 'check-roll adds entry');
 ok(APP.state.rollLog[0].label === 'проверка «харизма»', 'check label includes attr');
-ok(APP.state.rollLog[0].total === 11, 'check total 11 + 0 + 0');
+ok(APP.state.rollLog[0].total === 11, 'check total 11 + 0');
+
+// mastery bonus is NOT added to attribute checks; free bonus is used instead
+APP.mutate(() => { char.masteryBonus = 2; });
+input('check-bonus', null, '-1');
+ok(APP.state.checkBonus === -1, 'check free bonus stored');
+click('check-roll', null, { parentNode: { querySelector: () => ({ value: 'харизма' }) } });
+ok(APP.state.rollLog[0].expr === '11 + +0 + -1', 'check expr: d20 + mod + free bonus (no mastery)');
+ok(APP.state.rollLog[0].total === 10, 'check total 11 + 0 - 1 = 10 (mastery ignored)');
+input('check-bonus', null, '0');
+click('check-roll', null, { parentNode: { querySelector: () => ({ value: 'харизма' }) } });
+ok(APP.state.rollLog[0].expr === '11 + +0', 'zero bonus omitted from expr');
 
 // reroll logs
 APP.mutate(() => { char.inspiration = 2; });
 click('reroll');
-ok(APP.state.rollLog.length === 4, 'reroll adds entry');
+ok(APP.state.rollLog.length === 6, 'reroll adds entry');
 ok(APP.state.rollLog[0].label.indexOf('переброс') === 0, 'reroll label prefixed');
 
 // cap at 20

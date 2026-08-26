@@ -2288,7 +2288,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {}, skillBonus: {} };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {}, skillBonus: {}, checkBonus: 0 };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -4070,8 +4070,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
         <select class="field" data-action="check-attr">
           ${CALC.ATTRS.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}
         </select>
+        <input class="field" type="number" step="1" style="width:4rem;" title="Свободный бонус (можно отрицательный)" data-action="check-bonus" value="${state.checkBonus ? esc(state.checkBonus) : 0}">
         <button class="btn" data-action="check-roll">Проверка</button>
-        <span class="small muted">d20 + мод + уровневый бонус</span>
+        <span class="small muted">d20 + мод + свой бонус</span>
       </div>
     `));
     return box;
@@ -4108,12 +4109,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     const sel = scope ? scope.querySelector('[data-action="check-attr"]') : null;
     const attr = sel && sel.value ? sel.value : CALC.ATTRS[0];
     const mv = CALC.mods(char, DATA)[attr] || 0;
-    const mb = char.masteryBonus || 0;
+    const bonus = parseInt(state.checkBonus, 10) || 0;
     const n = 1 + Math.floor(Math.random() * 20);
-    lastDice = { desc: 'проверка «' + attr + '»', roll: n, mod: mv + mb };
+    lastDice = { desc: 'проверка «' + attr + '»', roll: n, mod: mv + bonus };
+    const terms = [String(n), (mv >= 0 ? '+' : '') + mv];
+    if (bonus !== 0) terms.push((bonus > 0 ? '+' : '') + bonus);
     showRoll(
-      { label: 'проверка «' + attr + '»', expr: n + ' + ' + (mv >= 0 ? '+' : '') + mv + ' + ' + mb, total: n + mv + mb },
-      'Проверка «' + attr + '»: ' + n + ' + ' + (mv >= 0 ? '+' : '') + mv + ' + ' + mb + ' = ' + (n + mv + mb)
+      { label: 'проверка «' + attr + '»', expr: terms.join(' + '), total: n + mv + bonus },
+      'Проверка «' + attr + '»: ' + terms.join(' + ') + ' = ' + (n + mv + bonus)
     );
   }
 
@@ -4282,6 +4285,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { STORE };
     else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
     else if (action === 'notes-input') notesInput(t.value);
     else if (action === 'ab-extra') abExtraSet(t.getAttribute('data-id'), t.value);
+    else if (action === 'check-bonus') {
+      const n = parseInt(t.value, 10);
+      state.checkBonus = isNaN(n) ? 0 : n;
+    }
     else if (action === 'skill-bonus') {
       const n = parseInt(t.value, 10);
       state.skillBonus[t.getAttribute('data-id')] = isNaN(n) ? 0 : n;
