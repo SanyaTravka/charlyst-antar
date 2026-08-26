@@ -262,12 +262,10 @@
     const w = state.wizard;
     const dots = WIZARD_TITLES.map((t, i) => {
       const n = i + 1;
-      let circle = 'background:#e8dcc0;border:1px solid #c9b98f;color:rgba(44,36,24,0.65);';
-      if (n < w.step) circle = 'background:var(--border);border:1px solid var(--border);color:var(--text);';
-      if (n === w.step) circle = 'background:var(--accent);border:1px solid var(--accent);color:var(--surface);';
+      const cls = 'wiz-dot' + (n < w.step ? ' done' : '') + (n === w.step ? ' active' : '');
       return `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-          <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8rem;${circle}">${n}</div>
+        <div class="wiz-step">
+          <div class="${cls}">${n}</div>
           <span class="small muted">${esc(t)}</span>
         </div>
       `;
@@ -784,7 +782,7 @@
       <button class="dot${char.deathSaves[key] >= i ? ' on' : ''}" data-action="death-toggle" data-id="${key}" data-index="${i}" title="${key === 'success' ? 'Успех' : 'Провал'}"></button>
     `).join('');
     return el(`
-      <div class="card" style="margin-top:0.75rem;background:#f6e3da;">
+      <div class="card death-panel">
         <div class="row between">
           <strong>Спасброски от смерти</strong>
           ${char.deathSaves.fail >= 2 ? '<span class="badge">СМЕРТЬ</span>' : ''}
