@@ -169,6 +169,16 @@ click('attr-minus', 'интеллект');
 eq(state.wizard.draft.attrs['интеллект'], 8, 'Тупой: - from 10 jumps to 8 (skips 9)');
 click('attr-plus', 'интеллект');
 eq(state.wizard.draft.attrs['интеллект'], 10, 'Тупой: re-jump to 10');
+
+// минимум характеристик при создании — 3
+for (let i = 0; i < 20; i++) click('attr-minus', 'интеллект');
+eq(state.wizard.draft.attrs['интеллект'], 3, 'attr floor is 3 at creation');
+eq(click('attr-minus', 'интеллект'), false, 'minus blocked at 3');
+click('attr-plus', 'интеллект');
+eq(state.wizard.draft.attrs['интеллект'], 4, 'plus works from floor');
+for (let i = 0; i < 4; i++) click('attr-plus', 'интеллект');
+eq(state.wizard.draft.attrs['интеллект'], 8, 'интеллект restored to 8');
+
 for (const a of ['сила', 'ловкость', 'живучесть', 'воля', 'восприятие']) {
   for (let i = 0; i < 5; i++) click('attr-plus', a);
 }

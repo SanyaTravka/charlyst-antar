@@ -380,7 +380,7 @@
   function attrDec(a) {
     mutate(() => {
       const d = state.wizard.draft;
-      if (d.attrs[a] <= 8) return;
+      if (d.attrs[a] <= 3) return;
       let v = d.attrs[a] - 1;
       if (CALC.hasTrait(d, DATA, 't12') && a === 'интеллект' && v === 9) v = 8;
       d.attrs[a] = v;
@@ -394,7 +394,7 @@
     container.appendChild(el(`
       <div class="row between" style="margin-bottom:0.5rem;">
         <h3 style="margin:0;">Характеристики</h3>
-        <span class="muted small">распределяются свободно (максимум — потолок расы)</span>
+        <span class="muted small">распределяются свободно (минимум 3, максимум — потолок расы)</span>
       </div>
     `));
     for (const a of CALC.ATTRS) {
@@ -410,7 +410,7 @@
             <div class="small muted">Финал: ${fin[a]} · Модификатор: ${mds[a] >= 0 ? '+' + mds[a] : mds[a]}${note.length ? ' · ' + esc(note.join(' · ')) : ''}</div>
           </div>
           <div class="row">
-            <button class="btn" data-action="attr-minus" data-id="${esc(a)}"${dis(cur <= 8)}>−</button>
+            <button class="btn" data-action="attr-minus" data-id="${esc(a)}"${dis(cur <= 3)}>−</button>
             <strong style="min-width:1.6rem;text-align:center;">${cur}</strong>
             <button class="btn" data-action="attr-plus" data-id="${esc(a)}"${dis(cur >= max)}>+</button>
           </div>
