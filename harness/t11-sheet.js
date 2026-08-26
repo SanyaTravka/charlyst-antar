@@ -164,6 +164,22 @@ freshRender();
 m = markup();
 ok(!m.includes('Итог КД: 19'), 'total ac updates after clearing shield');
 
+// custom shield: label + bonus inputs, counted in AC
+change('shield-set', 'custom');
+ok(char.shield && char.shield.id === 'custom' && char.shield.bonus === 1, 'custom shield defaults to bonus 1');
+m = markup();
+ok(m.includes('data-action="shield-label-set"') && m.includes('data-action="shield-bonus-set"'), 'custom shield inputs rendered');
+input('shield-label-set', null, 'Крышка от бочки');
+input('shield-bonus-set', null, '2');
+ok(char.shield.label === 'Крышка от бочки' && char.shield.bonus === 2, 'custom shield fields stored');
+m = markup();
+// КД брони заменяет базу: Легкие (16) + щит 2 = 18
+ok(m.includes('Крышка от бочки') && m.includes('Итог КД: 18'), 'custom shield counted in total ac');
+input('shield-bonus-set', null, '99');
+ok(char.shield.bonus <= 10, 'custom shield bonus clamped');
+change('shield-set', '');
+ok(char.shield === null, 'custom shield cleared');
+
 change('armor-set', '');
 ok(char.armor === null, 'armor cleared');
 

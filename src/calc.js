@@ -152,7 +152,10 @@ const t = traits(char, DATA);
       if (char.armor.id === 'custom') a = char.armor.ac;
       else if (DATA.armor && DATA.armor[char.armor.id]) a = DATA.armor[char.armor.id].ac;
     }
-    if (char.shield && DATA.shield && char.shield.id && DATA.shield[char.shield.id]) a += DATA.shield[char.shield.id].bonus;
+    if (char.shield && char.shield.id) {
+      if (char.shield.id === 'custom') a += Math.max(0, parseInt(char.shield.bonus, 10) || 0);
+      else if (DATA.shield && DATA.shield[char.shield.id]) a += DATA.shield[char.shield.id].bonus;
+    }
     if (DATA.allAbilities) for (const id of char.abilities) {
       const ab = DATA.allAbilities[id];
       if (ab && ab.mech && ab.mech.acBonus) a += ab.mech.acBonus;

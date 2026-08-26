@@ -187,6 +187,14 @@ test('ac: custom armor id uses stored ac value', () => {
   assert.equal(CALC.ac(std, D), 18);
 });
 
+test('ac: custom shield adds its bonus', () => {
+  const D = { ...DATA, shield: {} };
+  const c = baseChar({ shield: { id: 'custom', label: 'Крышка от бочки', bonus: 2 } });
+  assert.equal(CALC.ac(c, D), 12);
+  const zero = baseChar({ shield: { id: 'custom', bonus: 0 } });
+  assert.equal(CALC.ac(zero, D), 10);
+});
+
 test('inventoryWeight: sums weight*qty, ignores legacy strings', () => {
   const c = baseChar({ inventory: [
     'Факел',

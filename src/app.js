@@ -1612,7 +1612,7 @@
   function armorBlock(char) {
     const box = el('<div></div>');
     const armorOpts = [['', '—']].concat(Object.keys(DATA.armor).map(id => [id, DATA.armor[id].name])).concat([['custom', 'Кастомная броня…']]);
-    const shieldOpts = [['', '—']].concat(Object.keys(DATA.shield).map(id => [id, DATA.shield[id].name]));
+    const shieldOpts = [['', '—']].concat(Object.keys(DATA.shield).map(id => [id, DATA.shield[id].name])).concat([['custom', 'Кастомный щит…']]);
     box.appendChild(el(`
       <div>
         <div class="row">
@@ -1626,6 +1626,10 @@
           <select class="field" data-action="shield-set">
             ${shieldOpts.map(([id, name]) => `<option value="${esc(id)}"${char.shield && char.shield.id === id ? ' selected' : ''}>${esc(name)}</option>`).join('')}
           </select>
+          ${char.shield && char.shield.id === 'custom' ? `
+            <input class="field" style="flex:1;" data-action="shield-label-set" value="${esc(char.shield.label || '')}" placeholder="Название щита">
+            <input class="field" type="number" min="0" max="10" data-action="shield-bonus-set" value="${esc(char.shield.bonus != null ? char.shield.bonus : 1)}" style="width:4.5rem;" title="Бонус к КД">
+          ` : ''}
         </div>
       </div>
     `));
@@ -1642,7 +1646,9 @@
       const a = char.armor && DATA.armor[char.armor.id];
       if (a) box.appendChild(el(`<p class="small muted" style="margin:0.5rem 0 0;">${esc(a.name)} (КД ${a.ac}): ${esc(a.penalties)}</p>`));
     }
-    if (char.shield && DATA.shield && char.shield.id && DATA.shield[char.shield.id]) {
+    if (char.shield && char.shield.id === 'custom') {
+      box.appendChild(el(`<p class="small muted" style="margin:0.35rem 0 0;">Кастомный щит${char.shield.label ? ' («' + esc(char.shield.label) + '»)' : ''}: +${esc(char.shield.bonus || 0)} к КД</p>`));
+    } else if (char.shield && DATA.shield && char.shield.id && DATA.shield[char.shield.id]) {
       const s = DATA.shield[char.shield.id];
       box.appendChild(el(`<p class="small" style="margin:0.35rem 0 0;">Щит: ${esc(s.name)} (+${esc(s.bonus)} к КД)</p>`));
     }
@@ -1987,6 +1993,8 @@
     else if (action === 'inv-weight-set') invSet(parseInt(t.getAttribute('data-id'), 10), 'weight', t.value);
     else if (action === 'armor-label-set') armorLabelSet(t.value);
     else if (action === 'armor-ac-set') armorAcSet(t.value);
+    else if (action === 'shield-label-set') shieldLabelSet(t.value);
+    else if (action === 'shield-bonus-set') shieldBonusSet(t.value);
     else if (action === 'ref-search') { state.refQuery = String(t.value || ''); render(); }
     else if (action === 'notes-input') notesInput(t.value);
     else if (action === 'ab-extra') abExtraSet(t.getAttribute('data-id'), t.value);
@@ -2162,7 +2170,23 @@
   function shieldSet(id) {
     mutate(() => {
       const char = currentChar();
-      if (char) char.shield = id ? { id } : null;
+      if (char) char.shield = id ? (id === 'custom' ? { id: 'custom', label: '', bonus: 1 } : { id }) : null;
+    });
+  }
+
+  function shieldLabelSet(v) {
+    mutate(() => {
+      const char = currentChar();
+      if (char && char.shield && char.shield.id === 'custom') char.shield.label = String(v || '');
+    });
+  }
+
+  function shieldBonusSet(v) {
+    const n = parseInt(v, 10);
+    if (isNaN(n)) return;
+    mutate(() => {
+      const char = currentChar();
+      if (char && char.shield && char.shield.id === 'custom') char.shield.bonus = Math.max(0, Math.min(10, n));
     });
   }
 
