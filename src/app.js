@@ -4,7 +4,7 @@
     allAbilities: Object.assign({}, DATA_MAGIC.abilities, DATA_PHYSICAL.abilities),
   });
 
-  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {}, skillBonus: {}, checkBonus: 0 };
+  const state = { chars: STORE.load(), currentId: null, screen: 'select', tab: 'overview', refQuery: '', editingPool: null, collapsedSpecs: {}, openDescs: {}, rollLog: [], rollLogOpen: true, dicePool: [], diceMode: 'roll', abRolls: {}, skillAttrs: {}, skillBonus: {}, checkBonus: 0, discordModalOpen: false };
 
   const WIZARD_TITLES = ['Раса', 'Статус', 'Черта', 'Характеристики', 'Специализации', 'Стартовые ОС'];
   let humanModalOpen = false;
@@ -72,6 +72,75 @@
     logRoll(entry);
     render();
     toast(msg, type);
+    discordSend(entry);
+  }
+
+  function discordLs(key) {
+    try { return globalThis.localStorage && globalThis.localStorage.getItem ? globalThis.localStorage.getItem(key) : null; }
+    catch (e) { return null; }
+  }
+
+  function discordLsSet(key, value) {
+    try { if (globalThis.localStorage && globalThis.localStorage.setItem) globalThis.localStorage.setItem(key, value); }
+    catch (e) {}
+  }
+
+  function discordGetConfig() {
+    return {
+      url: String(discordLs('antar.webhook') || ''),
+      enabled: discordLs('antar.discordEnabled') === '1',
+    };
+  }
+
+  function discordSetConfig(url, enabled) {
+    discordLsSet('antar.webhook', String(url == null ? '' : url));
+    discordLsSet('antar.discordEnabled', enabled ? '1' : '0');
+  }
+
+  const DISCORD_COLORS = {
+    'test-crit': 0x2ecc71,
+    'test-fumble': 0xe74c3c,
+    'test': 0x9b59b6,
+    damage: 0xf1c40f,
+    init: 0x3498db,
+    pool: 0x1abc9c,
+    dice: 0x95a5a6,
+    reroll: 0xe67e22,
+  };
+
+  function discordEmbedColor(entry) {
+    if (entry.kind === 'test') {
+      const raw = parseInt(entry.expr, 10);
+      if (raw === 20) return DISCORD_COLORS['test-crit'];
+      if (raw === 1) return DISCORD_COLORS['test-fumble'];
+      return DISCORD_COLORS.test;
+    }
+    return DISCORD_COLORS[entry.kind] || DISCORD_COLORS.dice;
+  }
+
+  function discordEmbed(entry, charName) {
+    return {
+      embeds: [{
+        title: String(entry.label || 'Бросок'),
+        description: String(entry.expr || '') + ' = **' + entry.total + '**',
+        color: discordEmbedColor(entry),
+        timestamp: new Date(entry.t == null ? Date.now() : entry.t).toISOString(),
+        author: { name: String(charName || 'Антар') },
+      }],
+    };
+  }
+
+  function discordSend(entry) {
+    try {
+      const config = discordGetConfig();
+      if (!config.enabled || !config.url) return;
+      const charName = entry.charName || (currentChar() && currentChar().name) || '';
+      globalThis.fetch(config.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(discordEmbed(entry, charName)),
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   function renderRollLog() {
@@ -206,6 +275,7 @@
     const btns = [];
     if (state.screen !== 'select') btns.push('<button class="btn" data-action="list">← К списку</button>');
     if (currentChar()) btns.push('<button class="btn" data-action="export">Экспорт</button>');
+    if (state.screen === 'sheet') btns.push('<button class="btn" data-action="discord-open">Discord</button>');
     btns.push(`<button class="btn" data-action="theme-toggle">${theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}</button>`);
     return el(`
       <header class="topbar">
@@ -683,6 +753,28 @@
     if (condModalOpen) app.appendChild(condModal(char));
     if (exhModalOpen) app.appendChild(exhModal());
     if (levelUpOpen) { const lc = currentChar(); if (lc) app.appendChild(levelUpModal(lc)); }
+    if (state.discordModalOpen) app.appendChild(discordModal());
+  }
+
+  function discordModal() {
+    const cfg = discordGetConfig();
+    return el(`
+      <div class="wizard-overlay" data-action="discord-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem;">
+        <div class="card wizard-modal" data-action="discord-stop" style="max-width:560px;width:100%;">
+          <div class="row between">
+            <h3>Отправка бросков в Discord</h3>
+            <button class="btn btn-danger" data-action="discord-close">×</button>
+          </div>
+          <p class="small muted" style="margin:0.75rem 0 0.25rem;">URL вебхука Discord (Discord → канал → Настройки → Интеграции → Вебхуки):</p>
+          <input class="field" style="width:100%;" placeholder="https://discord.com/api/webhooks/…" data-action="discord-url" value="${esc(cfg.url)}">
+          <label class="row" style="margin:0.75rem 0 0;gap:0.4rem;cursor:pointer;">
+            <input type="checkbox" data-action="discord-enabled"${cfg.enabled ? ' checked' : ''}>
+            <span>Отправлять броски в Discord</span>
+          </label>
+          <p class="small muted" style="margin:0.75rem 0 0;">Каждый бросок (проверка, навык, оружие, инициатива, пул, кость) отправится как вложение с цветом по результату. Адрес хранится локально и не входит в сейв персонажа.</p>
+        </div>
+      </div>
+    `);
   }
 
   function trackerBlock(char) {
@@ -1127,7 +1219,7 @@
     const terms = [String(n), (mv >= 0 ? '+' : '') + mv];
     if (extra !== 0) terms.push((extra > 0 ? '+' : '') + extra);
     showRoll(
-      { label: 'проверка «' + attr + '» (' + ab.name + ')', expr: terms.join(' + '), total: n + mv + extra },
+      { label: 'проверка «' + attr + '» (' + ab.name + ')', expr: terms.join(' + '), total: n + mv + extra, kind: 'test' },
       'Проверка «' + attr + '» (' + ab.name + '): ' + terms.join(' + ') + ' = ' + (n + mv + extra)
     );
   }
@@ -1287,7 +1379,7 @@
     if (trained) terms.push(String(mb));
     if (bonus !== 0) terms.push((bonus > 0 ? '+' : '') + bonus);
     showRoll(
-      { label: 'навык «' + sk.name + '» (' + attr + ')', expr: terms.join(' + '), total: n + mv + mb + bonus },
+      { label: 'навык «' + sk.name + '» (' + attr + ')', expr: terms.join(' + '), total: n + mv + mb + bonus, kind: 'test' },
       esc(sk.name) + ' (' + esc(attr) + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb + bonus)
     );
   }
@@ -1468,7 +1560,7 @@
     const terms = [String(n), (mv >= 0 ? '+' : '') + mv, String(mb)];
     if (wb !== 0) terms.push((wb > 0 ? '+' : '') + wb);
     showRoll(
-      { label: 'атака: ' + name, expr: terms.join(' + '), total: n + mv + mb + wb },
+      { label: 'атака: ' + name, expr: terms.join(' + '), total: n + mv + mb + wb, kind: 'test' },
       'Атака (' + esc(name) + '): ' + terms.join(' + ') + ' = ' + (n + mv + mb + wb)
     );
   }
@@ -1502,7 +1594,7 @@
     const expr = terms.join('+');
     const breakdown = parts.map(pt => pt.label + ': ' + pt.vals.join(', ')).join(' + ');
     showRoll(
-      { label: 'урон: ' + name, expr, total },
+      { label: 'урон: ' + name, expr, total, kind: 'damage' },
       'Урон (' + esc(name) + '): ' + expr + ' = ' + total + ' (' + breakdown + ')' + (doubled ? ' ×2 куба' : '')
     );
   }
@@ -1803,7 +1895,7 @@
     }
     const n = 1 + Math.floor(Math.random() * sides);
     lastDice = { desc: key, roll: n, mod: 0 };
-    showRoll({ label: key, expr: String(n), total: n }, 'Кость ' + key + ': ' + n);
+    showRoll({ label: key, expr: String(n), total: n, kind: 'dice' }, 'Кость ' + key + ': ' + n);
   }
 
   function poolRoll() {
@@ -1813,7 +1905,7 @@
     const formula = poolFormula(state.dicePool);
     state.dicePool = [];
     showRoll(
-      { label: 'Пул ' + formula, expr: vals.join('+'), total },
+      { label: 'Пул ' + formula, expr: vals.join('+'), total, kind: 'pool' },
       'Пул ' + formula + ': ' + vals.join('+') + ' = ' + total
     );
   }
@@ -1831,7 +1923,7 @@
     const terms = [String(n), (mv >= 0 ? '+' : '') + mv];
     if (bonus !== 0) terms.push((bonus > 0 ? '+' : '') + bonus);
     showRoll(
-      { label: 'проверка «' + attr + '»', expr: terms.join(' + '), total: n + mv + bonus },
+      { label: 'проверка «' + attr + '»', expr: terms.join(' + '), total: n + mv + bonus, kind: 'test' },
       'Проверка «' + attr + '»: ' + terms.join(' + ') + ' = ' + (n + mv + bonus)
     );
   }
@@ -1847,7 +1939,7 @@
     const parts = [best + (rolls > 1 ? ' (лучший из ' + rolls + ')' : ''), 'скорость ' + CALC.speed(char, DATA)];
     if (CALC.hasTrait(char, DATA, 't16')) { total -= 10; parts.push('Параноик −10'); }
     lastDice = { desc: 'инициатива', roll: best, mod: total - best };
-    showRoll({ label: 'инициатива', expr: parts.join(' + '), total }, 'Инициатива: ' + parts.join(' + ') + ' = ' + total);
+    showRoll({ label: 'инициатива', expr: parts.join(' + '), total, kind: 'init' }, 'Инициатива: ' + parts.join(' + ') + ' = ' + total);
   }
 
   function rerollDice() {
@@ -1856,9 +1948,10 @@
     const n = 1 + Math.floor(Math.random() * 20);
     const total = n + lastDice.mod;
     const expr = n + (lastDice.mod ? (lastDice.mod > 0 ? ' + ' : ' − ') + Math.abs(lastDice.mod) : '');
-    logRoll({ label: 'переброс: ' + lastDice.desc, expr, total });
+    logRoll({ label: 'переброс: ' + lastDice.desc, expr, total, kind: 'reroll' });
     mutate(() => { char.inspiration -= 1; });
     toast('Переброс (' + lastDice.desc + '): ' + expr + ' = ' + total);
+    discordSend(state.rollLog[0]);
   }
 
   function handleClick(e) {
@@ -1979,6 +2072,9 @@
     else if (action === 'levelup-os') levelUpOs(id);
     else if (action === 'levelup-apply') applyLevelUp();
     else if (action === 'levelup-hpmode') levelUpHpMode(id);
+    else if (action === 'discord-open') { state.discordModalOpen = true; render(); }
+    else if (action === 'discord-close') { state.discordModalOpen = false; render(); }
+    else if (action === 'discord-stop') {}
   }
 
   function handleInput(e) {
@@ -2030,6 +2126,14 @@
     else if (action === 'injury-set') injurySet(t.getAttribute('data-id'), t.checked);
     else if (action === 'ab-attr') abAttrSet(t.getAttribute('data-id'), t.value);
     else if (action === 'skill-attr') { state.skillAttrs[t.getAttribute('data-id')] = String(t.value || ''); render(); }
+    else if (action === 'discord-url') {
+      const cfg = discordGetConfig();
+      discordSetConfig(String(t.value || ''), cfg.enabled);
+    }
+    else if (action === 'discord-enabled') {
+      const cfg = discordGetConfig();
+      discordSetConfig(cfg.url, !!t.checked);
+    }
   }
 
   function injurySet(k, on) {
@@ -2560,5 +2664,5 @@
 
   applyTheme();
 
-  window.APP = { DATA, state, el, currentChar, mutate, save, toast, goto, render, esc, selectChar, deleteChar, exportChar, importChar, newChar, calcFull, tabSet, createChar };
+  window.APP = { DATA, state, el, currentChar, mutate, save, toast, goto, render, esc, selectChar, deleteChar, exportChar, importChar, newChar, calcFull, tabSet, createChar, discordGetConfig, discordSetConfig, discordEmbed, discordSend };
 })();
